@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(pip3:*)",
+      "Bash(pip:*)",
+      "Bash(uvicorn:*)",
+      "Bash(source .env*)",
+      "Bash(source .env && *)",
+      "Bash(export *)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "Bash(pwsh:*)",
+      "Bash(sqlite3:*)",
+      "Bash(cd /home/kali/payment-gateway*)"
+    ],
+    "defaultMode": "default"
+  },
+
+  "env": {
+    "BEASTPAY_ROOT": "/home/kali/payment-gateway",
+    "PYTHONPATH": "/home/kali/payment-gateway"
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport sys, json\ntry:\n    data = json.load(sys.stdin)\n    cmd = data.get('tool_input',{}).get('command','')\n    if 'uvicorn' in cmd and 'source .env' not in cmd:\n        print(json.dumps({'systemMessage': 'Reminder: source .env first so payment keys load properly.'}))\nexcept Exception:\n    pass\n\"",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport sys, json, subprocess\ntry:\n    data = json.load(sys.stdin)\n    f = data.get('tool_input',{}).get('file_path') or data.get('tool_response',{}).get('filePath','') or ''\n    if f.endswith('.py'):\n        r = subprocess.run(['python3','-m','py_compile',f], capture_output=True, text=True)\n        if r.returncode != 0:\n            print(json.dumps({'systemMessage': 'Syntax error in ' + f + ': ' + r.stderr.strip()[:200]}))\nexcept Exception:\n    pass\n\"",
+            "statusMessage": "Checking Python syntax..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json; print(json.dumps({'systemMessage': 'BeastPay done. Start: source .env && uvicorn server:app --host 0.0.0.0 --port 8000'}))\"",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
