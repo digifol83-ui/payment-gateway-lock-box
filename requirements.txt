@@ -1,7 +1,27 @@
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-httpx>=0.26.0
-pydantic[email]>=2.5.0
-python-multipart>=0.0.7
-cryptography>=42.0.0
-aiohttp>=3.9.0
+# Core
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.11.5
+pydantic-settings==2.10.1
+python-dotenv==1.0.0
+
+# Async database
+aiosqlite==0.19.0
+sqlalchemy==2.0.24
+
+# HTTP client
+httpx==0.25.0
+aiohttp==3.11.18
+
+# WebSocket
+websockets==12.0
+
+# Encryption
+cryptography==41.0.0
+
+# Logging
+structlog==24.1.0
+
+# Testing
+pytest==7.4.0
+pytest-asyncio==0.21.0

@@ -1,107 +1,206 @@
+from pydantic_settings import BaseSettings
+from typing import Optional
 import os
+import re
 
-# ─── Provider API Keys ──────────────────────────────────────────────────────
-TRANSAK_API_KEY    = os.getenv("TRANSAK_API_KEY", "YOUR_TRANSAK_API_KEY")
-TRANSAK_SECRET     = os.getenv("TRANSAK_SECRET",  "YOUR_TRANSAK_SECRET")
-TRANSAK_ENV        = os.getenv("TRANSAK_ENV", "STAGING")   # STAGING | PRODUCTION
+class Settings(BaseSettings):
+    # Core
+    DEBUG: bool = False
+    ENVIRONMENT: str = "development"
 
-MOONPAY_API_KEY    = os.getenv("MOONPAY_API_KEY",  "YOUR_MOONPAY_API_KEY")
-MOONPAY_SECRET     = os.getenv("MOONPAY_SECRET",   "YOUR_MOONPAY_SECRET")
-MOONPAY_ENV        = os.getenv("MOONPAY_ENV", "sandbox")   # sandbox | production
+    # Database
+    DATABASE_URL: str = "sqlite+aiosqlite:///./payments.db"
 
-# ─── Stripe ──────────────────────────────────────────────────────────────────
-# dashboard.stripe.com → Developers → API Keys
-STRIPE_SECRET_KEY      = os.getenv("STRIPE_SECRET_KEY",      "sk_placeholder")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "pk_placeholder")
-STRIPE_WEBHOOK_SECRET  = os.getenv("STRIPE_WEBHOOK_SECRET",  "whsec_placeholder")
-STRIPE_ENV             = os.getenv("STRIPE_ENV", "test")    # test | live
-STRIPE_ENABLED         = bool(
-    STRIPE_SECRET_KEY and not STRIPE_SECRET_KEY.startswith("sk_placeholder")
-)
+    # Security
+    ADMIN_API_KEY: str = "admin_key_dev"
+    CREDENTIAL_ENCRYPTION_KEY: str = ""
+    OPENCORPORATES_API_TOKEN: str = ""
 
-# ─── Server ─────────────────────────────────────────────────────────────────
-HOST               = os.getenv("HOST", "0.0.0.0")
-PORT               = int(os.getenv("PORT", "8000"))
-BASE_URL           = os.getenv("BASE_URL", f"http://localhost:{PORT}")
-ADMIN_API_KEY      = os.getenv("ADMIN_API_KEY", "admin-secret-change-me")
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
 
-# ─── Supported Assets ───────────────────────────────────────────────────────
-SUPPORTED_CRYPTOS = {
-    "BTC":  "Bitcoin",
-    "ETH":  "Ethereum",
-    "USDT": "Tether (ERC-20)",
-    "USDC": "USD Coin",
-    "BNB":  "BNB",
-    "SOL":  "Solana",
-    "TRX":  "TRON",
-    "MATIC":"Polygon",
-}
+    # Provider configs (optional for Phase 1)
+    TRANSAK_API_KEY: str = ""
+    TRANSAK_SECRET: str = ""
+    TRANSAK_ACCESS_TOKEN: str = ""
+    TRANSAK_ENV: str = "PRODUCTION"
 
-SUPPORTED_FIATS = ["USD", "EUR", "GBP", "INR", "AED", "CAD", "AUD"]
+    MOONPAY_API_KEY: str = ""
+    MOONPAY_SECRET: str = ""
+    MOONPAY_ENV: str = "sandbox"
 
-DEFAULT_CRYPTO = "USDT"
-DEFAULT_FIAT   = "USD"
+    NOWPAYMENTS_API_KEY: str = ""
+    NOWPAYMENTS_IPN_SECRET: str = ""
+    NOWPAYMENTS_ENV: str = "sandbox"
 
-# ─── Telegram Bot ────────────────────────────────────────────────────────────
-# Get BOT_TOKEN from @BotFather, CHAT_ID from @userinfobot or your channel ID
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN",  "")   # e.g. 123456:ABCdef...
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID",    "")   # e.g. -100123456789 or @yourchannel
-TELEGRAM_ENABLED    = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_ENV: str = ""
+    STRIPE_STATUS: str = ""
+    # Telegram Payments "provider token" (named like Stripe, but issued by @BotFather)
+    STRIPE_PROVIDER_TOKEN: str = ""
 
-# Notification toggles (set env vars to "0" to silence specific events)
-TG_NOTIFY_NEW_PAYMENT   = os.getenv("TG_NOTIFY_NEW_PAYMENT",   "1") == "1"
-TG_NOTIFY_COMPLETED     = os.getenv("TG_NOTIFY_COMPLETED",     "1") == "1"
-TG_NOTIFY_FAILED        = os.getenv("TG_NOTIFY_FAILED",        "1") == "1"
-TG_NOTIFY_NEW_LINK      = os.getenv("TG_NOTIFY_NEW_LINK",      "1") == "1"
-TG_NOTIFY_DAILY_SUMMARY = os.getenv("TG_NOTIFY_DAILY_SUMMARY", "1") == "1"
+    ZIINA_API_TOKEN: str = ""
+    ZIINA_WEBHOOK_SECRET: str = ""
+    ZIINA_ENV: str = "production"
 
-# ─── WhatsApp Cloud API ──────────────────────────────────────────────────────
-# Meta Business → WhatsApp → API Setup → get Phone Number ID + permanent token
-WHATSAPP_TOKEN      = os.getenv("WHATSAPP_TOKEN",      "")   # permanent access token
-WHATSAPP_PHONE_ID   = os.getenv("WHATSAPP_PHONE_ID",   "")   # Phone Number ID from Meta
-WHATSAPP_TO         = os.getenv("WHATSAPP_TO",         "")   # recipient number e.g. 911234567890
-WHATSAPP_ENABLED    = bool(WHATSAPP_TOKEN and WHATSAPP_PHONE_ID and WHATSAPP_TO)
-WA_NOTIFY_NEW_PAYMENT   = os.getenv("WA_NOTIFY_NEW_PAYMENT",   "1") == "1"
-WA_NOTIFY_COMPLETED     = os.getenv("WA_NOTIFY_COMPLETED",     "1") == "1"
-WA_NOTIFY_FAILED        = os.getenv("WA_NOTIFY_FAILED",        "1") == "1"
-WA_NOTIFY_NEW_LINK      = os.getenv("WA_NOTIFY_NEW_LINK",      "0") == "1"  # off by default
+    GUARDARIAN_API_KEY: str = ""
+    GUARDARIAN_ENV: str = "production"
 
-# ─── NOWPayments (crypto-native provider) ────────────────────────────────────
-# Sign up at nowpayments.io → API Keys → create key
-NOWPAYMENTS_API_KEY     = os.getenv("NOWPAYMENTS_API_KEY",    "")
-NOWPAYMENTS_IPN_SECRET  = os.getenv("NOWPAYMENTS_IPN_SECRET", "")
-NOWPAYMENTS_ENV         = os.getenv("NOWPAYMENTS_ENV", "sandbox")  # sandbox | production
-NOWPAYMENTS_ENABLED     = bool(NOWPAYMENTS_API_KEY)
+    COINREMITTER_API_KEY: str = ""
+    COINREMITTER_API_PASSWORD: str = ""
+    COINREMITTER_COIN: str = "BTC"
+    COINREMITTER_ENV: str = "production"
 
-# ─── Sumsub KYC ──────────────────────────────────────────────────────────────
-# dashboard.sumsub.com → Developers → App tokens
-SUMSUB_APP_TOKEN    = os.getenv("SUMSUB_APP_TOKEN",  "")
-SUMSUB_SECRET_KEY   = os.getenv("SUMSUB_SECRET_KEY", "")
-SUMSUB_ENABLED      = bool(SUMSUB_APP_TOKEN and SUMSUB_SECRET_KEY)
-SUMSUB_LEVEL_NAME   = os.getenv("SUMSUB_LEVEL_NAME", "basic-kyc-level")  # your flow name
+    PLISIO_API_KEY: str = ""
+    PLISIO_ENV: str = "production"
 
-# ─── Lockbox / Claude AI Parser ──────────────────────────────────────────────
-# Get from console.anthropic.com → API Keys
-ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
-LOCKBOX_ENABLED     = bool(ANTHROPIC_API_KEY)
+    FINCHPAY_API_KEY: str = ""
+    FINCHPAY_SECRET_KEY: str = ""
+    FINCHPAY_ENV: str = "sandbox"
 
-# ─── Module 3: Merchant Verification ─────────────────────────────────────────
-# OpenCorporates — opencorporates.com → Account → API Token
-OPENCORPORATES_API_TOKEN    = os.getenv("OPENCORPORATES_API_TOKEN", "")
-OPENCORPORATES_ENABLED      = bool(OPENCORPORATES_API_TOKEN)
+    # New fast fiat-to-crypto providers
+    KAST_API_KEY: str = ""
+    KAST_SECRET: str = ""
+    KAST_ENV: str = "production"
 
-# Credential encryption key — any strong random string (32+ chars recommended)
-CREDENTIAL_ENCRYPTION_KEY   = os.getenv("CREDENTIAL_ENCRYPTION_KEY", "change-me-use-a-strong-random-key")
+    CHARGE_API_KEY: str = ""
+    CHARGE_SECRET: str = ""
+    CHARGE_ENV: str = "production"
 
-# IMAP email monitoring for OTP auto-extraction
-IMAP_HOST       = os.getenv("IMAP_HOST", "")
-IMAP_PORT       = int(os.getenv("IMAP_PORT", "993"))
-IMAP_USER       = os.getenv("IMAP_USER", "")
-IMAP_PASSWORD   = os.getenv("IMAP_PASSWORD", "")
-IMAP_ENABLED    = bool(IMAP_HOST and IMAP_USER and IMAP_PASSWORD)
+    SWAPIN_API_KEY: str = ""
+    SWAPIN_SECRET: str = ""
+    SWAPIN_ENV: str = "production"
 
-# ─── KYC Tiers ───────────────────────────────────────────────────────────────
-# Below limit: Transak/MoonPay handle KYC internally (email only)
-# Above limit: route through Sumsub for full identity verification
-KYC_FREE_LIMIT_USD  = int(os.getenv("KYC_FREE_LIMIT_USD", "200"))
-KYC_SUMSUB_LIMIT    = int(os.getenv("KYC_SUMSUB_LIMIT",   "500"))  # trigger Sumsub above this
+    BLEAP_API_KEY: str = ""
+    BLEAP_SECRET: str = ""
+    BLEAP_ENV: str = "production"
+
+    # KYC thresholds
+    KYC_FREE_LIMIT_USD: float = 100
+    KYC_SUMSUB_LIMIT: float = 500
+
+    # Messaging
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_ENABLED: bool = False
+    TG_NOTIFY_NEW_PAYMENT: bool = True
+    TG_NOTIFY_COMPLETED: bool = True
+    TG_NOTIFY_FAILED: bool = True
+    TG_NOTIFY_NEW_LINK: bool = True
+    TG_NOTIFY_DAILY_SUMMARY: bool = True
+
+    # Codewords AI Integration
+    CODEWORDS_API_KEY: str = ""
+    CODEWORDS_BASE_URL: str = "https://api.codewords.ai"
+    CODEWORDS_ENABLED: bool = False
+
+    # LLM (Claude)
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-3-5-sonnet-latest"
+
+    # Base URL for links in notifications
+    BASE_URL: str = "http://localhost:8000"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+        extra = "ignore"
+
+settings = Settings()
+
+
+def _is_production() -> bool:
+    env = (settings.ENVIRONMENT or "").strip().lower()
+    return env in {"prod", "production"}
+
+
+def validate_runtime_settings() -> None:
+    if not _is_production():
+        return
+
+    admin_key = (settings.ADMIN_API_KEY or "").strip()
+    if not admin_key or admin_key in {"admin_key_dev", "admin_key_dev_12345"} or len(admin_key) < 24:
+        raise RuntimeError("Invalid ADMIN_API_KEY for production (must be strong/non-default, >= 24 chars).")
+
+    enc_key = (settings.CREDENTIAL_ENCRYPTION_KEY or "").strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", enc_key or ""):
+        raise RuntimeError("Invalid CREDENTIAL_ENCRYPTION_KEY for production (must be 64 hex chars / 32 bytes).")
+
+# Export config values for direct import by providers
+TRANSAK_API_KEY = settings.TRANSAK_API_KEY
+TRANSAK_SECRET = settings.TRANSAK_SECRET
+TRANSAK_ENV = settings.TRANSAK_ENV
+TRANSAK_ACCESS_TOKEN = settings.TRANSAK_API_KEY  # Fallback for compatibility
+
+MOONPAY_API_KEY = getattr(settings, 'MOONPAY_API_KEY', '')
+MOONPAY_SECRET = getattr(settings, 'MOONPAY_SECRET', '')
+MOONPAY_ENV = getattr(settings, 'MOONPAY_ENV', 'sandbox')
+
+NOWPAYMENTS_API_KEY = getattr(settings, 'NOWPAYMENTS_API_KEY', '')
+NOWPAYMENTS_IPN_SECRET = getattr(settings, 'NOWPAYMENTS_IPN_SECRET', '')
+NOWPAYMENTS_ENV = getattr(settings, 'NOWPAYMENTS_ENV', 'sandbox')
+
+STRIPE_SECRET_KEY = settings.STRIPE_SECRET_KEY
+STRIPE_PUBLISHABLE_KEY = settings.STRIPE_PUBLISHABLE_KEY
+STRIPE_WEBHOOK_SECRET = settings.STRIPE_WEBHOOK_SECRET
+STRIPE_ENV = settings.STRIPE_ENV
+STRIPE_PROVIDER_TOKEN = getattr(settings, "STRIPE_PROVIDER_TOKEN", "")
+
+ZIINA_API_TOKEN = getattr(settings, 'ZIINA_API_TOKEN', '')
+ZIINA_WEBHOOK_SECRET = getattr(settings, 'ZIINA_WEBHOOK_SECRET', '')
+ZIINA_ENV = getattr(settings, 'ZIINA_ENV', 'production')
+
+GUARDARIAN_API_KEY = getattr(settings, 'GUARDARIAN_API_KEY', '')
+GUARDARIAN_ENV = getattr(settings, 'GUARDARIAN_ENV', 'production')
+
+COINREMITTER_API_KEY = getattr(settings, 'COINREMITTER_API_KEY', '')
+COINREMITTER_API_PASSWORD = getattr(settings, 'COINREMITTER_API_PASSWORD', '')
+COINREMITTER_COIN = getattr(settings, 'COINREMITTER_COIN', 'BTC')
+COINREMITTER_ENV = getattr(settings, 'COINREMITTER_ENV', 'production')
+
+PLISIO_API_KEY = getattr(settings, 'PLISIO_API_KEY', '')
+PLISIO_ENV = getattr(settings, 'PLISIO_ENV', 'production')
+
+FINCHPAY_API_KEY = getattr(settings, 'FINCHPAY_API_KEY', '')
+FINCHPAY_SECRET_KEY = getattr(settings, 'FINCHPAY_SECRET_KEY', '')
+FINCHPAY_ENV = getattr(settings, 'FINCHPAY_ENV', 'sandbox')
+
+# New fast providers
+KAST_API_KEY = settings.KAST_API_KEY
+KAST_SECRET = settings.KAST_SECRET
+KAST_ENV = settings.KAST_ENV
+
+CHARGE_API_KEY = settings.CHARGE_API_KEY
+CHARGE_SECRET = settings.CHARGE_SECRET
+CHARGE_ENV = settings.CHARGE_ENV
+
+SWAPIN_API_KEY = settings.SWAPIN_API_KEY
+SWAPIN_SECRET = settings.SWAPIN_SECRET
+SWAPIN_ENV = settings.SWAPIN_ENV
+
+BLEAP_API_KEY = settings.BLEAP_API_KEY
+BLEAP_SECRET = settings.BLEAP_SECRET
+BLEAP_ENV = settings.BLEAP_ENV
+
+# Other settings
+BASE_URL = settings.BASE_URL
+ADMIN_API_KEY = settings.ADMIN_API_KEY
+CREDENTIAL_ENCRYPTION_KEY = settings.CREDENTIAL_ENCRYPTION_KEY
+DATABASE_URL = settings.DATABASE_URL
+OPENCORPORATES_API_TOKEN = settings.OPENCORPORATES_API_TOKEN
+
+# KYC thresholds (from environment or defaults)
+KYC_FREE_LIMIT_USD = float(getattr(settings, 'KYC_FREE_LIMIT_USD', 100))
+KYC_SUMSUB_LIMIT = float(getattr(settings, 'KYC_SUMSUB_LIMIT', 500))
+
+# Telegram
+TELEGRAM_BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID = settings.TELEGRAM_CHAT_ID
+TELEGRAM_ENABLED = settings.TELEGRAM_ENABLED
+
+# Claude/Anthropic
+ANTHROPIC_API_KEY = settings.ANTHROPIC_API_KEY
+ANTHROPIC_MODEL = settings.ANTHROPIC_MODEL

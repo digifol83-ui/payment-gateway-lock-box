@@ -1,4 +1,138 @@
-payments.db
-__pycache__/
-*.pyc
+# Environment variables
 .env
+.env.local
+.env*.local
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+payments.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+coverage.xml
+
+# Logs
+*.log
+server.log
+payment-gateway.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+.tmp/
+
+# Credentials (sensitive)
+*.pem
+*.key
+*.crt
+*.cert
+.safebox_fernet.key
+.guardarian_creds
+.gmail_config
+.stripe_keys.json
+.stripe_account.json
+autonomous_state.json
+autonomous_operations.log
+.mcp.json
+.aws/
+.ssh/
+
+# Uploads
+uploads/
+tmp/
+
+# Node.js (for little-majlis)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation builds
+docs/_build/
+site/
+
+# Vendor directories
+vendors/
+applications/
+
+# Archive files (backups)
+*.zip
+beastpay-deployment.zip
+*.tar.gz
+*.backup
+*.backup.*
+
+# Deployment
+systemd/
+docker/build/
+
+# Development
+*.todo
+NOTES.md
+DEBUG_*
+test_*.csv
+
+# Exclude sensitive dumps but keep structure
+payments_*.csv
+!.gitkeep
