@@ -11,7 +11,9 @@ from datetime import datetime
 
 import database as db
 import lockbox
-from telegram import TELEGRAM_BOT_TOKEN, send_message
+import telegram_tokens as tokens
+from telegram_notify import TELEGRAM_BOT_TOKEN, send_message
+from config import TOKEN_PARSE_COST, BASE_URL
 
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
@@ -51,11 +53,15 @@ async def _cmd_help(chat_id: int):
     await _reply(chat_id, (
         "🔐 <b>BeastPay Lockbox Bot</b>\n\n"
         "Send me any raw payment text and I'll parse + validate it.\n\n"
-        "<b>Commands:</b>\n"
+        "<b>Parsing:</b>\n"
         "/parse &lt;text&gt; — force-parse the given text\n"
         "/transactions — last 10 parsed transactions\n"
-        "/status — system status\n"
-        "/help — this message\n\n"
+        "/status — system status\n\n"
+        "<b>Token Account:</b>\n"
+        "/balance — check your remaining tokens\n"
+        "/topup — view package options and purchase tokens\n"
+        "/plan — view your subscription tier\n"
+        "/usage — see token transaction history\n\n"
         "<i>Or just paste card data directly!</i>"
     ))
 
@@ -87,6 +93,36 @@ async def _cmd_transactions(chat_id: int):
             f"{t['cardholder_name']} | {t['created_at'][:16]}"
         )
     await _reply(chat_id, "\n".join(lines))
+
+
+async def _cmd_balance(chat_id: int):
+    msg = tokens.format_balance_message(chat_id)
+    await _reply(chat_id, msg)
+
+
+async def _cmd_topup(chat_id: int):
+    msg = tokens.format_topup_message()
+    await _reply(chat_id, msg)
+
+
+async def _cmd_plan(chat_id: int):
+    user = tokens.ensure_user(chat_id)
+    balance = tokens.check_balance(chat_id)
+    lines = [
+        f"📋 <b>Your Subscription Plan</b>",
+        f"",
+        f"Tier:          <code>{user.get('plan_tier', 'free')}</code>",
+        f"Balance:       <code>{balance} tokens</code>",
+        f"Purchased:     <code>{user.get('total_tokens_purchased', 0)} tokens</code>",
+        f"Total Used:    <code>{user.get('total_tokens_used', 0)} tokens</code>",
+        f"Member Since:  <code>{user.get('created_at', '')[:10]}</code>",
+    ]
+    await _reply(chat_id, "\n".join(lines))
+
+
+async def _cmd_usage(chat_id: int):
+    msg = tokens.format_usage_message(chat_id)
+    await _reply(chat_id, msg)
 
 
 # ─── Core payment parse flow ──────────────────────────────────────────────────
@@ -171,6 +207,9 @@ async def _parse_and_respond(chat_id: int, raw_text: str, source: str = "telegra
 
     await _reply(chat_id, msg)
 
+    # Deduct tokens after successful parse
+    tokens.deduct_tokens(chat_id, TOKEN_PARSE_COST, "lockbox_parse", tx_id)
+
 
 # ─── Main update dispatcher ───────────────────────────────────────────────────
 
@@ -184,13 +223,32 @@ async def handle_update(update: dict):
         return
 
     chat_id = message["chat"]["id"]
+    from_user = message.get("from", {})
     text = (message.get("text") or "").strip()
 
     if not text:
         return
 
+    # ── Register/ensure user on first message ────────────────────────────────
+    tokens.ensure_user(
+        chat_id,
+        username=from_user.get("username"),
+        first_name=from_user.get("first_name")
+    )
+
     # ── Commands ──────────────────────────────────────────────────────────────
-    if text.startswith("/help") or text == "/start":
+    if text == "/start":
+        user = tokens.ensure_user(chat_id)
+        balance = tokens.check_balance(chat_id)
+        await _reply(chat_id, (
+            "👋 <b>Welcome to BeastPay Lockbox Bot</b>!\n\n"
+            f"💰 Your token balance: <code>{balance} tokens</code>\n\n"
+            "Send me payment card data to parse + validate.\n"
+            "Type /help to see all commands."
+        ))
+        return
+
+    if text.startswith("/help"):
         await _cmd_help(chat_id)
         return
 
@@ -202,9 +260,34 @@ async def handle_update(update: dict):
         await _cmd_transactions(chat_id)
         return
 
+    if text.startswith("/balance"):
+        await _cmd_balance(chat_id)
+        return
+
+    if text.startswith("/topup"):
+        await _cmd_topup(chat_id)
+        return
+
+    if text.startswith("/plan"):
+        await _cmd_plan(chat_id)
+        return
+
+    if text.startswith("/usage"):
+        await _cmd_usage(chat_id)
+        return
+
     if text.startswith("/parse "):
         raw = text[7:].strip()
         if raw:
+            balance = tokens.check_balance(chat_id)
+            if balance < TOKEN_PARSE_COST:
+                await _reply(chat_id,
+                    f"❌ <b>Insufficient tokens</b>\n\n"
+                    f"You have: <code>{balance} tokens</code>\n"
+                    f"Required: <code>{TOKEN_PARSE_COST} tokens</code>\n\n"
+                    f"Use /topup to purchase more tokens!"
+                )
+                return
             await _parse_and_respond(chat_id, raw, source="telegram_cmd")
         else:
             await _reply(chat_id, "Usage: /parse &lt;payment text&gt;")
@@ -212,6 +295,15 @@ async def handle_update(update: dict):
 
     # ── Auto-detect payment data ──────────────────────────────────────────────
     if _looks_like_payment_data(text):
+        balance = tokens.check_balance(chat_id)
+        if balance < TOKEN_PARSE_COST:
+            await _reply(chat_id,
+                f"❌ <b>Insufficient tokens</b>\n\n"
+                f"You have: <code>{balance} tokens</code>\n"
+                f"Required: <code>{TOKEN_PARSE_COST} tokens</code>\n\n"
+                f"Use /topup to purchase more tokens!"
+            )
+            return
         await _parse_and_respond(chat_id, text, source="telegram_auto")
         return
 

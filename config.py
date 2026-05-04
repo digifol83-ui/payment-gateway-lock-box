@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     BLEAP_SECRET: str = ""
     BLEAP_ENV: str = "production"
 
+    METAMASK_API_KEY: str = ""
+    METAMASK_SECRET: str = ""
+    METAMASK_WEBHOOK_SECRET: str = ""
+    METAMASK_ENV: str = "production"
+
     # KYC thresholds
     KYC_FREE_LIMIT_USD: float = 100
     KYC_SUMSUB_LIMIT: float = 500
@@ -184,6 +189,11 @@ SWAPIN_ENV = settings.SWAPIN_ENV
 BLEAP_API_KEY = settings.BLEAP_API_KEY
 BLEAP_SECRET = settings.BLEAP_SECRET
 BLEAP_ENV = settings.BLEAP_ENV
+
+METAMASK_API_KEY = settings.METAMASK_API_KEY
+METAMASK_SECRET = settings.METAMASK_SECRET
+METAMASK_WEBHOOK_SECRET = settings.METAMASK_WEBHOOK_SECRET
+METAMASK_ENV = settings.METAMASK_ENV
 
 # Other settings
 BASE_URL = settings.BASE_URL

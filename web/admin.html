@@ -103,6 +103,12 @@
   <div class="nav-item" data-page="kyc" onclick="showPage('kyc')">
     <span class="icon">🛡️</span> KYC / Sumsub
   </div>
+  <div class="nav-item" data-page="verification" onclick="showPage('verification')">
+    <span class="icon">🏢</span> Merchant Verify
+  </div>
+  <div class="nav-item" data-page="forceverify" onclick="showPage('forceverify')">
+    <span class="icon">⚡</span> ForceVerify
+  </div>
   <div style="height:1px;background:#334155;margin:6px 16px"></div>
   <div style="padding:12px 20px 4px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.8px">AI Tools</div>
   <div class="nav-item" data-page="lockbox" onclick="showPage('lockbox')">
@@ -465,6 +471,198 @@
     </div>
   </div>
 
+  <!-- MERCHANT VERIFICATION PAGE -->
+  <div class="page" id="page-verification">
+    <div style="background:linear-gradient(135deg,#0f2027,#1a3a1a,#2d5a27);border-radius:16px;padding:28px;margin-bottom:24px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:24px;top:20px;font-size:60px;opacity:0.15">🏢</div>
+      <h2 style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px">Merchant Verification</h2>
+      <p style="color:#94a3b8;font-size:13px;margin-bottom:16px">Automated pipeline: Company lookup → Document parsing → Risk scoring → Gateway registration</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 16px">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px">OpenCorporates</div>
+          <div style="font-size:14px;font-weight:700;color:#fff" id="vfy-oc-status">—</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 16px">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px">IMAP / OTP</div>
+          <div style="font-size:14px;font-weight:700;color:#fff" id="vfy-imap-status">—</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 16px">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px">Encryption</div>
+          <div style="font-size:14px;font-weight:700;color:#fff" id="vfy-enc-status">—</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px 16px">
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px">AI Parser</div>
+          <div style="font-size:14px;font-weight:700;color:#fff" id="vfy-ai-status">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stats-grid" style="margin-bottom:24px">
+      <div class="stat-card">
+        <div class="stat-label">Total Profiles</div>
+        <div class="stat-value" id="vfy-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Approved</div>
+        <div class="stat-value" style="color:#22c55e" id="vfy-approved">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending Review</div>
+        <div class="stat-value" style="color:#f59e0b" id="vfy-pending">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Rejected</div>
+        <div class="stat-value" style="color:#ef4444" id="vfy-rejected">—</div>
+      </div>
+    </div>
+
+    <!-- Onboard new merchant -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Onboard New Merchant</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Company Name *</div>
+          <input id="vfy-company-name" type="text" placeholder="e.g. OpenClaw LLC" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Registration Number *</div>
+          <input id="vfy-reg-number" type="text" placeholder="e.g. CN-12345678" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Jurisdiction (ISO-2)</div>
+          <input id="vfy-jurisdiction" type="text" placeholder="e.g. AE, GB, SG" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px" value="AE">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Business Email *</div>
+          <input id="vfy-email" type="email" placeholder="owner@company.com" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Website</div>
+          <input id="vfy-website" type="text" placeholder="https://company.com" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Phone</div>
+          <input id="vfy-phone" type="text" placeholder="+971 50 000 0000" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="vfyOnboard()">Start Verification Pipeline</button>
+      <div id="vfy-onboard-result" style="margin-top:12px;font-size:13px;color:#94a3b8"></div>
+    </div>
+
+    <!-- Profile list -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Verification Profiles</span>
+        <button class="btn btn-sm" style="background:#334155;color:#e2e8f0" onclick="loadVerificationProfiles()">Refresh</button>
+      </div>
+      <div id="vfy-profiles-table"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- Company lookup -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Company Lookup (OpenCorporates)</div>
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <input id="vfy-lookup-name" type="text" placeholder="Company name" style="flex:1;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        <input id="vfy-lookup-jur" type="text" placeholder="Jurisdiction (ae)" style="width:120px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        <button class="btn btn-primary" onclick="vfyCompanyLookup()">Search</button>
+      </div>
+      <pre id="vfy-lookup-result" style="background:#0f172a;border-radius:8px;padding:12px;font-size:12px;color:#94a3b8;overflow-x:auto;display:none"></pre>
+    </div>
+
+    <!-- Document upload + parse -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Upload & Parse Document (AI)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Profile ID</div>
+          <input id="vfy-doc-profile" type="text" placeholder="merchant profile id" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Document Type</div>
+          <select id="vfy-doc-type" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+            <option value="trade_license">Trade License</option>
+            <option value="registration_cert">Certificate of Incorporation</option>
+            <option value="moa">MOA</option>
+            <option value="emirates_id">Emirates ID</option>
+            <option value="passport">Passport</option>
+            <option value="bank_statement">Bank Statement</option>
+            <option value="aoa">AOA</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Document Text / Extracted Content</div>
+        <textarea id="vfy-doc-text" rows="5" placeholder="Paste document text here…" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="vfyUploadDoc()">Upload Document</button>
+        <button class="btn" style="background:#334155;color:#e2e8f0" onclick="vfyParseDoc()">Parse with AI</button>
+      </div>
+      <pre id="vfy-doc-result" style="background:#0f172a;border-radius:8px;padding:12px;font-size:12px;color:#94a3b8;overflow-x:auto;margin-top:12px;display:none"></pre>
+    </div>
+
+    <!-- Gateway registration -->
+    <div class="card">
+      <div class="card-title">Gateway Registration</div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">Profile ID</div>
+        <input id="vfy-gw-profile" type="text" placeholder="merchant profile id" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:13px">
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Gateways</div>
+        <div style="display:flex;gap:16px">
+          <label style="color:#e2e8f0;font-size:13px"><input type="checkbox" id="vfy-gw-transak" checked style="margin-right:6px">Transak</label>
+          <label style="color:#e2e8f0;font-size:13px"><input type="checkbox" id="vfy-gw-moonpay" style="margin-right:6px">MoonPay</label>
+          <label style="color:#e2e8f0;font-size:13px"><input type="checkbox" id="vfy-gw-simplex" style="margin-right:6px">Simplex</label>
+          <label style="color:#e2e8f0;font-size:13px"><input type="checkbox" id="vfy-gw-ramp" style="margin-right:6px">Ramp Network</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="vfyRegisterGateways()">Register with Gateways</button>
+      <div id="vfy-gw-result" style="margin-top:12px;font-size:13px;color:#94a3b8"></div>
+    </div>
+  </div>
+
+  <!-- FORCEVERIFY PAGE -->
+  <div class="page" id="page-forceverify">
+    <div style="background:linear-gradient(135deg,#052e1a,#064e3b,#065f46);border-radius:16px;padding:28px;margin-bottom:24px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:24px;top:24px;font-size:56px;opacity:0.15">⚡</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#6ee7b7;margin-bottom:8px">Gateway Router</div>
+      <div style="font-size:28px;font-weight:800;color:#fff;margin-bottom:6px">ForceVerify</div>
+      <div style="color:#a7f3d0;font-size:14px;max-width:620px">Auto-picks the best gateway — 100% verified keys, fastest settlement, spot crypto credit.</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Fully Verified</div><div class="stat-value" id="fv-verified-count">—</div></div>
+      <div class="stat-card"><div class="stat-label">Partial (Sandbox)</div><div class="stat-value" id="fv-partial-count">—</div></div>
+      <div class="stat-card"><div class="stat-label">Best Pick</div><div class="stat-value" id="fv-best" style="font-size:18px">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ranked Providers</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:#94a3b8">Filter by crypto:</label>
+        <select id="fv-crypto-filter" onchange="loadForceVerify()" style="padding:6px 10px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;margin-left:8px">
+          <option value="">Any</option>
+          <option value="BTC">BTC</option>
+          <option value="ETH">ETH</option>
+          <option value="USDT">USDT</option>
+          <option value="USDT_TRX">USDT-TRC20</option>
+          <option value="USDC">USDC</option>
+          <option value="SOL">SOL</option>
+        </select>
+        <button class="btn btn-sm" style="margin-left:12px" onclick="loadForceVerify()">Refresh</button>
+      </div>
+      <table class="table" id="fv-table">
+        <thead><tr>
+          <th>#</th><th>Provider</th><th>Type</th><th>Verified</th>
+          <th>Fast</th><th>Spot</th><th>Fee %</th><th>No-KYC</th><th>Score</th>
+        </tr></thead>
+        <tbody id="fv-rows"><tr><td colspan="9" style="text-align:center;color:#64748b">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- LOCKBOX AI PAGE -->
   <div class="page" id="page-lockbox">
     <!-- Hero -->
@@ -665,13 +863,27 @@
 
 <script>
 const BASE_URL = '__BASE_URL__';
-const ADMIN_KEY = '__ADMIN_KEY__';
-const HEADERS = {'X-Api-Key': ADMIN_KEY, 'Content-Type': 'application/json'};
+const ADMIN_KEY_STORAGE = 'BEASTPAY_ADMIN_API_KEY';
 
 let allPaymentsCache = [];
 
+function getAdminKey() {
+  return (localStorage.getItem(ADMIN_KEY_STORAGE) || '').trim();
+}
+
+function ensureAdminKey() {
+  let k = getAdminKey();
+  if (k) return k;
+  k = (prompt('Enter Admin API Key (X-Api-Key):') || '').trim();
+  if (k) localStorage.setItem(ADMIN_KEY_STORAGE, k);
+  return k;
+}
+
 async function api(path, opts={}) {
-  const res = await fetch(BASE_URL + path, {headers: HEADERS, ...opts});
+  const adminKey = ensureAdminKey();
+  if (!adminKey) throw new Error('Missing Admin API Key');
+  const headers = {'X-Api-Key': adminKey, 'Content-Type': 'application/json', ...(opts.headers||{})};
+  const res = await fetch(BASE_URL + path, {headers, ...opts});
   if (!res.ok) {
     const err = await res.json().catch(()=>({detail:'Unknown error'}));
     throw new Error(err.detail || res.statusText);
@@ -1296,6 +1508,165 @@ async function stripeTest() {
   }
 }
 
+// ─── Merchant Verification ───────────────────────────────────────────────────
+async function loadVerificationStatus() {
+  try {
+    const h = await api('/health');
+    document.getElementById('vfy-oc-status').textContent   = h.opencorporates_enabled ? '✅ Enabled'  : '❌ Not set';
+    document.getElementById('vfy-imap-status').textContent = h.imap_enabled           ? '✅ Enabled'  : '❌ Not set';
+    document.getElementById('vfy-enc-status').textContent  = h.encryption_key_set     ? '✅ Set'      : '❌ Not set';
+    document.getElementById('vfy-ai-status').textContent   = h.anthropic_key          ? '✅ Connected': '❌ Not set';
+  } catch(e) {
+    ['vfy-oc-status','vfy-imap-status','vfy-enc-status','vfy-ai-status'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.textContent='—';
+    });
+  }
+  await loadVerificationProfiles();
+}
+
+async function loadVerificationProfiles() {
+  const el = document.getElementById('vfy-profiles-table');
+  try {
+    const data = await api('/api/verification/profiles?limit=50');
+    const profiles = data.profiles || data || [];
+    if (!profiles.length) { el.innerHTML='<div class="empty">No verification profiles yet.</div>'; return; }
+    const statusColor = s => s==='approved'?'#22c55e':s==='pending_review'?'#f59e0b':s==='rejected'?'#ef4444':'#94a3b8';
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="color:#64748b;font-size:11px;text-transform:uppercase">
+        <th style="text-align:left;padding:8px 4px">Company</th>
+        <th style="text-align:left;padding:8px 4px">Jurisdiction</th>
+        <th style="text-align:left;padding:8px 4px">Status</th>
+        <th style="text-align:left;padding:8px 4px">Phase</th>
+        <th style="text-align:left;padding:8px 4px">Score</th>
+        <th style="text-align:left;padding:8px 4px">ID</th>
+      </tr></thead>
+      <tbody>${profiles.map(p=>`<tr style="border-top:1px solid #1e293b">
+        <td style="padding:8px 4px;color:#e2e8f0;font-weight:600">${p.company_name||'—'}</td>
+        <td style="padding:8px 4px;color:#94a3b8">${p.jurisdiction||'—'}</td>
+        <td style="padding:8px 4px;color:${statusColor(p.onboarding_status)};font-weight:600">${(p.onboarding_status||'—').replace(/_/g,' ')}</td>
+        <td style="padding:8px 4px;color:#94a3b8">${p.current_phase??'—'}</td>
+        <td style="padding:8px 4px;color:#e2e8f0">${p.risk_score!=null?p.risk_score+'%':'—'}</td>
+        <td style="padding:8px 4px;color:#475569;font-size:11px;font-family:monospace">${(p.id||'').substring(0,8)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    document.getElementById('vfy-total').textContent    = profiles.length;
+    document.getElementById('vfy-approved').textContent = profiles.filter(p=>p.onboarding_status==='approved').length;
+    document.getElementById('vfy-pending').textContent  = profiles.filter(p=>p.onboarding_status==='pending_review').length;
+    document.getElementById('vfy-rejected').textContent = profiles.filter(p=>p.onboarding_status==='rejected').length;
+  } catch(e) { el.innerHTML=`<div class="empty" style="color:#ef4444">Error: ${e.message}</div>`; }
+}
+
+async function vfyOnboard() {
+  const el = document.getElementById('vfy-onboard-result');
+  const name = document.getElementById('vfy-company-name').value.trim();
+  const reg  = document.getElementById('vfy-reg-number').value.trim();
+  const jur  = document.getElementById('vfy-jurisdiction').value.trim();
+  const mail = document.getElementById('vfy-email').value.trim();
+  const web  = document.getElementById('vfy-website').value.trim();
+  const ph   = document.getElementById('vfy-phone').value.trim();
+  if (!name || !mail) { el.textContent='Company name and email are required.'; el.style.color='#ef4444'; return; }
+  el.textContent='Starting pipeline…'; el.style.color='#94a3b8';
+  try {
+    const r = await api('/api/verification/onboard', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({company_name:name,registration_number:reg,jurisdiction:jur,business_email:mail,website:web,phone:ph})});
+    el.innerHTML=`<span style="color:#22c55e">✅ Profile created. ID: <code>${r.profile_id||r.id||'—'}</code> — ${r.message||r.status||''}</span>`;
+    setTimeout(loadVerificationProfiles, 1500);
+  } catch(e) { el.textContent='Error: '+e.message; el.style.color='#ef4444'; }
+}
+
+async function vfyCompanyLookup() {
+  const el  = document.getElementById('vfy-lookup-result');
+  const name= document.getElementById('vfy-lookup-name').value.trim();
+  const jur = document.getElementById('vfy-lookup-jur').value.trim()||'ae';
+  if (!name) return;
+  el.style.display='block'; el.textContent='Searching…';
+  try {
+    const r = await api('/api/verification/company-lookup', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({company_name:name, jurisdiction:jur})});
+    el.textContent = JSON.stringify(r, null, 2);
+  } catch(e) { el.textContent='Error: '+e.message; }
+}
+
+async function vfyUploadDoc() {
+  const el     = document.getElementById('vfy-doc-result');
+  const pid    = document.getElementById('vfy-doc-profile').value.trim();
+  const dtype  = document.getElementById('vfy-doc-type').value;
+  const text   = document.getElementById('vfy-doc-text').value.trim();
+  if (!pid||!text) { toast('Profile ID and document text required','#ef4444'); return; }
+  el.style.display='block'; el.textContent='Uploading…';
+  try {
+    const r = await api('/api/verification/upload-document', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({profile_id:pid, document_type:dtype, document_text:text, document_name:dtype})});
+    el.textContent = JSON.stringify(r, null, 2);
+    toast('Document uploaded');
+  } catch(e) { el.textContent='Error: '+e.message; }
+}
+
+async function vfyParseDoc() {
+  const el  = document.getElementById('vfy-doc-result');
+  const pid = document.getElementById('vfy-doc-profile').value.trim();
+  const text= document.getElementById('vfy-doc-text').value.trim();
+  const dtype=document.getElementById('vfy-doc-type').value;
+  if (!text) { toast('Paste document text first','#ef4444'); return; }
+  el.style.display='block'; el.textContent='Parsing with Claude AI…';
+  try {
+    const r = await api('/api/verification/parse-document', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({profile_id:pid||null, document_type:dtype, raw_text:text})});
+    el.textContent = JSON.stringify(r, null, 2);
+  } catch(e) { el.textContent='Error: '+e.message; }
+}
+
+async function vfyRegisterGateways() {
+  const el  = document.getElementById('vfy-gw-result');
+  const pid = document.getElementById('vfy-gw-profile').value.trim();
+  if (!pid) { el.textContent='Profile ID required'; el.style.color='#ef4444'; return; }
+  const gateways = [];
+  if (document.getElementById('vfy-gw-transak').checked) gateways.push('transak');
+  if (document.getElementById('vfy-gw-moonpay').checked) gateways.push('moonpay');
+  if (document.getElementById('vfy-gw-simplex').checked) gateways.push('simplex');
+  if (document.getElementById('vfy-gw-ramp').checked)    gateways.push('ramp_network');
+  if (!gateways.length) { el.textContent='Select at least one gateway'; el.style.color='#ef4444'; return; }
+  el.textContent=`Registering with ${gateways.join(', ')}…`; el.style.color='#94a3b8';
+  try {
+    const r = await api('/api/verification/register-gateways', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({profile_id:pid, gateways})});
+    el.innerHTML=`<span style="color:#22c55e">✅ ${r.message||r.status||'Registration started — check profile for results.'}</span>`;
+  } catch(e) { el.textContent='Error: '+e.message; el.style.color='#ef4444'; }
+}
+
+// ─── ForceVerify loader ──────────────────────────────────────────────────────
+async function loadForceVerify() {
+  const crypto = document.getElementById('fv-crypto-filter').value;
+  const qs = crypto ? `?crypto=${encodeURIComponent(crypto)}` : '';
+  const [status, list] = await Promise.all([
+    api('/api/forceverify/status'),
+    api(`/api/forceverify/list${qs}`),
+  ]);
+  document.getElementById('fv-verified-count').textContent = status.fully_verified.length;
+  document.getElementById('fv-partial-count').textContent = status.partial.length;
+  try {
+    const best = await api(`/api/forceverify/best${qs}`);
+    document.getElementById('fv-best').textContent = `${best.name} (${best.score})`;
+  } catch(e) {
+    document.getElementById('fv-best').textContent = 'none verified';
+  }
+  const rows = list.providers.map((p, i) => {
+    const badge = v => v >= 1 ? '✅' : (v > 0 ? '⚠️' : '❌');
+    return `<tr>
+      <td>${i+1}</td>
+      <td><b>${p.name}</b></td>
+      <td>${p.type}</td>
+      <td>${badge(p.verified)} ${p.verified}</td>
+      <td>${p.fast}</td>
+      <td>${p.spot_credit}</td>
+      <td>${p.fee_pct}%</td>
+      <td>${p.no_kyc ? 'yes' : 'no'}</td>
+      <td><b>${p.score}</b></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('fv-rows').innerHTML = rows || '<tr><td colspan="9">No providers</td></tr>';
+}
+
 // ─── Extended showPage ────────────────────────────────────────────────────────
 const _origShowPage = showPage;
 function showPage(name) {
@@ -1305,7 +1676,9 @@ function showPage(name) {
   if (name === 'nowpayments') loadNowPaymentsStatus();
   if (name === 'stripe')      loadStripeStatus();
   if (name === 'kyc')         loadKycStatus();
-  if (name === 'lockbox')     loadLockboxStatus();
+  if (name === 'lockbox')       loadLockboxStatus();
+  if (name === 'verification')  loadVerificationStatus();
+  if (name === 'forceverify')   loadForceVerify();
 }
 
 // Init — open on Bot Hub

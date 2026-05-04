@@ -253,7 +253,8 @@ def wizard_transak(env: dict) -> dict:
     if confirm("Configure Transak?", default=False):
         p("  [dim]dashboard.transak.com → Integrations → API Keys[/]")
         changes["TRANSAK_API_KEY"]  = ask("API Key", password=True)
-        changes["TRANSAK_SECRET"]   = ask("Secret", password=True)
+        changes["TRANSAK_ACCESS_TOKEN"] = ask("Partner Access Token (for webhook JWT verification)", password=True)
+        changes["TRANSAK_SECRET"]   = ""  # legacy
         changes["TRANSAK_ENV"]      = ask("Environment (STAGING/PRODUCTION)", default="STAGING")
     return changes
 

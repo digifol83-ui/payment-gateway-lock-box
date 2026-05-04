@@ -19,8 +19,9 @@ def get_conn():
 
 
 def init_db():
-    with get_conn() as conn:
-        conn.executescript("""
+    try:
+        with get_conn() as conn:
+            conn.executescript("""
             CREATE TABLE IF NOT EXISTS merchants (
                 id          TEXT PRIMARY KEY,
                 name        TEXT NOT NULL,
@@ -219,7 +220,72 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_mpro_status   ON merchant_profiles(onboarding_status);
             CREATE INDEX IF NOT EXISTS idx_gwreg_gateway ON gateway_registrations(gateway_name);
             CREATE INDEX IF NOT EXISTS idx_gwreg_mpro   ON gateway_registrations(merchant_profile_id);
+
+            -- ── Module 4: Telegram Bot Token Charging ────────────────────────────
+
+            CREATE TABLE IF NOT EXISTS bot_users (
+                id                   TEXT PRIMARY KEY,
+                telegram_chat_id     TEXT UNIQUE NOT NULL,
+                telegram_username    TEXT,
+                first_name           TEXT,
+                plan_tier            TEXT DEFAULT 'free',
+                token_balance        INTEGER DEFAULT 0,
+                free_tokens_used_today INTEGER DEFAULT 0,
+                free_tokens_last_reset TEXT,
+                total_tokens_purchased INTEGER DEFAULT 0,
+                total_tokens_used    INTEGER DEFAULT 0,
+                is_active            INTEGER DEFAULT 1,
+                created_at           TEXT NOT NULL,
+                updated_at           TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS token_transactions (
+                id           TEXT PRIMARY KEY,
+                bot_user_id  TEXT REFERENCES bot_users(id),
+                chat_id      TEXT NOT NULL,
+                type         TEXT NOT NULL,
+                amount       INTEGER NOT NULL,
+                operation    TEXT,
+                reference_id TEXT,
+                balance_after INTEGER NOT NULL,
+                created_at   TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_bot_users_chat   ON bot_users(telegram_chat_id);
+            CREATE INDEX IF NOT EXISTS idx_token_tx_chat    ON token_transactions(chat_id);
+            CREATE INDEX IF NOT EXISTS idx_token_tx_type    ON token_transactions(type);
+            CREATE INDEX IF NOT EXISTS idx_token_tx_created ON token_transactions(created_at);
+
+            -- ── Module 5: Card Verification (Stripe Radar-style fraud detection) ──
+
+            CREATE TABLE IF NOT EXISTS card_verification_log (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_hash           TEXT NOT NULL,
+                fraud_score         INTEGER NOT NULL,
+                risk_level          TEXT NOT NULL,
+                recommendation      TEXT NOT NULL,
+                avs_match           TEXT,
+                card_type           TEXT,
+                masked_card         TEXT,
+                pre_auth_status     TEXT,
+                velocity_attempts_1h INTEGER DEFAULT 0,
+                velocity_attempts_24h INTEGER DEFAULT 0,
+                fraud_signals       TEXT,
+                ip_address          TEXT,
+                device_id           TEXT,
+                region              TEXT DEFAULT 'US',
+                created_at          TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_card_hash      ON card_verification_log(card_hash);
+            CREATE INDEX IF NOT EXISTS idx_fraud_score    ON card_verification_log(fraud_score);
+            CREATE INDEX IF NOT EXISTS idx_risk_level     ON card_verification_log(risk_level);
+            CREATE INDEX IF NOT EXISTS idx_created_at     ON card_verification_log(created_at);
         """)
+        return True
+    except Exception as e:
+        print(f"[init_db] error: {e}")
+        return False
 
 
 # ─── Merchant helpers ────────────────────────────────────────────────────────
@@ -705,4 +771,108 @@ def get_stats() -> dict:
         "total_volume_usd": round(volume, 2),
         "active_links": links,
         "conversion_rate": round(completed / total * 100, 1) if total else 0,
+    }
+
+
+# ─── Telegram Bot User helpers ──────────────────────────────────────────────────
+
+def create_bot_user(chat_id: str, username: str = None, first_name: str = None) -> dict:
+    from datetime import timedelta
+    uid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    yesterday = (datetime.utcnow().date() - timedelta(days=1)).isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO bot_users
+               (id, telegram_chat_id, telegram_username, first_name, plan_tier,
+                token_balance, free_tokens_used_today, free_tokens_last_reset,
+                total_tokens_purchased, total_tokens_used, is_active, created_at, updated_at)
+               VALUES (?,?,?,?,?,0,0,?,0,0,1,?,?)""",
+            (uid, chat_id, username, first_name, "free", yesterday, now, now)
+        )
+    return get_bot_user(chat_id)
+
+
+def get_bot_user(chat_id: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM bot_users WHERE telegram_chat_id=? AND is_active=1",
+            (str(chat_id),)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_bot_user_tokens(chat_id: str, new_balance: int, daily_used: int = None, last_reset: str = None):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        if daily_used is not None and last_reset is not None:
+            conn.execute(
+                """UPDATE bot_users SET token_balance=?, free_tokens_used_today=?,
+                   free_tokens_last_reset=?, updated_at=? WHERE telegram_chat_id=?""",
+                (new_balance, daily_used, last_reset, now, str(chat_id))
+            )
+        else:
+            conn.execute(
+                "UPDATE bot_users SET token_balance=?, updated_at=? WHERE telegram_chat_id=?",
+                (new_balance, now, str(chat_id))
+            )
+
+
+def create_token_transaction(chat_id: str, trans_type: str, amount: int, operation: str,
+                           ref_id: str = None, balance_after: int = 0) -> dict:
+    tid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    user = get_bot_user(chat_id)
+    user_id = user["id"] if user else None
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO token_transactions
+               (id, bot_user_id, chat_id, type, amount, operation, reference_id, balance_after, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (tid, user_id, str(chat_id), trans_type, amount, operation, ref_id, balance_after, now)
+        )
+    return {
+        "id": tid,
+        "chat_id": chat_id,
+        "type": trans_type,
+        "amount": amount,
+        "operation": operation,
+        "balance_after": balance_after,
+        "created_at": now
+    }
+
+
+def get_token_usage_stats(chat_id: str, limit: int = 10) -> dict:
+    user = get_bot_user(chat_id)
+    if not user:
+        return {}
+
+    with get_conn() as conn:
+        transactions = conn.execute(
+            """SELECT * FROM token_transactions WHERE chat_id=?
+               ORDER BY created_at DESC LIMIT ?""",
+            (str(chat_id), limit)
+        ).fetchall()
+
+        total_used = conn.execute(
+            """SELECT COALESCE(SUM(ABS(amount)),0) FROM token_transactions
+               WHERE chat_id=? AND type='debit'""",
+            (str(chat_id),)
+        ).fetchone()[0]
+
+        total_purchased = conn.execute(
+            """SELECT COALESCE(SUM(amount),0) FROM token_transactions
+               WHERE chat_id=? AND type='credit'""",
+            (str(chat_id),)
+        ).fetchone()[0]
+
+    return {
+        "user_id": user["id"],
+        "chat_id": chat_id,
+        "current_balance": user["token_balance"],
+        "plan_tier": user["plan_tier"],
+        "free_tokens_used_today": user["free_tokens_used_today"],
+        "total_tokens_purchased": total_purchased,
+        "total_tokens_used": total_used,
+        "recent_transactions": [dict(t) for t in transactions]
     }

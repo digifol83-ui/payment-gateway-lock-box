@@ -86,6 +86,8 @@ function Write-Menu {
     Write-Host "  │  [K] KYC / Sumsub Menu              │" -ForegroundColor Yellow
     Write-Host "  │  [S] 💜 Stripe Menu                 │" -ForegroundColor Magenta
     Write-Host "  │  [L] 🔐 Lockbox AI Parser           │" -ForegroundColor Cyan
+    Write-Host "  │  [V] 🏢 Merchant Verification       │" -ForegroundColor Green
+    Write-Host "  │  [F] ⚡ ForceVerify Router          │" -ForegroundColor Green
     Write-Host "  ├─────────────────────────────────────┤" -ForegroundColor DarkCyan
     Write-Host "  │  [Q] Quit                           │" -ForegroundColor Yellow
     Write-Host "  └─────────────────────────────────────┘" -ForegroundColor DarkCyan
@@ -1083,6 +1085,274 @@ function Show-StripeMenu {
     } while ($true)
 }
 
+# ─── Merchant Verification Menu ──────────────────────────────────────────────
+function Show-VerificationMenu {
+    do {
+        Clear-Host
+        Write-Host ""
+        Write-Host "  ┌─────────────────────────────────────┐" -ForegroundColor Green
+        Write-Host "  │  🏢 MERCHANT VERIFICATION           │" -ForegroundColor Green
+        Write-Host "  │  Automated KYB / Gateway Onboarding │" -ForegroundColor DarkGray
+        Write-Host "  ├─────────────────────────────────────┤" -ForegroundColor Green
+        Write-Host "  │  [1] List Profiles                  │" -ForegroundColor White
+        Write-Host "  │  [2] View Profile Detail            │" -ForegroundColor White
+        Write-Host "  │  [3] Onboard New Merchant           │" -ForegroundColor White
+        Write-Host "  │  [4] Company Lookup (OpenCorporates)│" -ForegroundColor White
+        Write-Host "  │  [5] Run Full Pipeline              │" -ForegroundColor White
+        Write-Host "  │  [6] Register with Gateways         │" -ForegroundColor White
+        Write-Host "  │  [7] Submit OTP Manually            │" -ForegroundColor White
+        Write-Host "  │  [8] Transak Verify (vendor)        │" -ForegroundColor White
+        Write-Host "  │  [B] Back to Main Menu              │" -ForegroundColor Yellow
+        Write-Host "  └─────────────────────────────────────┘" -ForegroundColor Green
+        Write-Host ""
+        $choice = Read-Host "  Choice"
+        switch ($choice.Trim().ToUpper()) {
+
+            "1" {
+                Write-Host "`n  Fetching verification profiles…" -ForegroundColor DarkGray
+                $data = Invoke-API "/api/verification/profiles?limit=50"
+                $profiles = if ($data.profiles) { $data.profiles } else { $data }
+                if ($profiles -and $profiles.Count -gt 0) {
+                    Write-Host ""
+                    Write-Host ("  {0,-30} {1,-10} {2,-22} {3,-6}" -f "Company","Jur","Status","Score") -ForegroundColor DarkGray
+                    Write-Host "  " + ("─" * 72) -ForegroundColor DarkGray
+                    foreach ($p in $profiles) {
+                        $sc = switch ($p.onboarding_status) {
+                            "approved"       { "Green"  }
+                            "pending_review" { "Yellow" }
+                            "rejected"       { "Red"    }
+                            default          { "Gray"   }
+                        }
+                        $score = if ($p.risk_score -ne $null) { "$($p.risk_score)%" } else { "—" }
+                        Write-Host ("  {0,-30} {1,-10} " -f ($p.company_name -replace '.{28}$','…'), $p.jurisdiction) -NoNewline
+                        Write-Host ("{0,-22}" -f ($p.onboarding_status -replace '_',' ')) -ForegroundColor $sc -NoNewline
+                        Write-Host $score
+                    }
+                } else {
+                    Write-Host "  No profiles found." -ForegroundColor Yellow
+                }
+                Pause-Prompt
+            }
+
+            "2" {
+                $pid = Read-Host "  Profile ID (or partial)"
+                if ($pid.Trim() -eq "") { continue }
+                Write-Host "`n  Fetching…" -ForegroundColor DarkGray
+                $p = Invoke-API "/api/verification/profile/$($pid.Trim())"
+                if ($p) {
+                    Write-Host ""
+                    Write-Host "  Company        : $($p.company_name)" -ForegroundColor White
+                    Write-Host "  Jurisdiction   : $($p.jurisdiction)"
+                    Write-Host "  Email          : $($p.business_email)"
+                    Write-Host "  Website        : $($p.website)"
+                    Write-Host "  Reg Number     : $($p.registration_number)"
+                    $sc = switch ($p.onboarding_status) { "approved"{"Green"} "rejected"{"Red"} default{"Yellow"} }
+                    Write-Host "  Status         : " -NoNewline; Write-Host $p.onboarding_status -ForegroundColor $sc
+                    Write-Host "  Phase          : $($p.current_phase)"
+                    Write-Host "  Risk Score     : $($p.risk_score)%"
+                    Write-Host ""
+                    if ($p.gateway_registrations -and $p.gateway_registrations.Count -gt 0) {
+                        Write-Host "  Gateway Registrations:" -ForegroundColor DarkGray
+                        foreach ($gr in $p.gateway_registrations) {
+                            $gc = if ($gr.registration_status -eq "completed") { "Green" } else { "Yellow" }
+                            Write-Host ("    {0,-14} {1}" -f $gr.gateway_name, $gr.registration_status) -ForegroundColor $gc
+                        }
+                    }
+                }
+                Pause-Prompt
+            }
+
+            "3" {
+                Write-Host ""
+                Write-Host "  ─── Onboard New Merchant ───────────────────" -ForegroundColor Green
+                $cname = Read-Host "  Company Name"
+                $creg  = Read-Host "  Registration Number"
+                $cjur  = Read-Host "  Jurisdiction ISO-2 (default: AE)"
+                $cmail = Read-Host "  Business Email"
+                $cweb  = Read-Host "  Website (optional)"
+                $cph   = Read-Host "  Phone (optional)"
+                if ($cjur.Trim() -eq "") { $cjur = "AE" }
+                $body = @{
+                    company_name        = $cname
+                    registration_number = $creg
+                    jurisdiction        = $cjur.ToUpper()
+                    business_email      = $cmail
+                    website             = $cweb
+                    phone               = $cph
+                } | ConvertTo-Json
+                Write-Host "`n  Starting pipeline…" -ForegroundColor DarkGray
+                $r = Invoke-API "/api/verification/onboard" "POST" $body
+                if ($r) {
+                    Write-Host "  ✅ Profile created!" -ForegroundColor Green
+                    Write-Host "  Profile ID : $($r.profile_id ?? $r.id)" -ForegroundColor Cyan
+                    Write-Host "  Message    : $($r.message ?? $r.status)"
+                }
+                Pause-Prompt
+            }
+
+            "4" {
+                $cname = Read-Host "  Company name to search"
+                $cjur  = Read-Host "  Jurisdiction (default: ae)"
+                if ($cjur.Trim() -eq "") { $cjur = "ae" }
+                $body = @{ company_name = $cname; jurisdiction = $cjur.ToLower() } | ConvertTo-Json
+                Write-Host "`n  Searching OpenCorporates…" -ForegroundColor DarkGray
+                $r = Invoke-API "/api/verification/company-lookup" "POST" $body
+                if ($r) {
+                    Write-Host ""
+                    Write-Host "  Name       : $($r.name ?? $r.company_name ?? '—')" -ForegroundColor White
+                    Write-Host "  Status     : $($r.status ?? '—')"
+                    Write-Host "  Reg No     : $($r.company_number ?? $r.registration_number ?? '—')"
+                    Write-Host "  Jurisdiction: $($r.jurisdiction_code ?? $cjur)"
+                    Write-Host "  Address    : $($r.registered_address_in_full ?? '—')"
+                }
+                Pause-Prompt
+            }
+
+            "5" {
+                $pid = Read-Host "  Profile ID to run full pipeline"
+                if ($pid.Trim() -eq "") { continue }
+                Write-Host "`n  Running verification engine…" -ForegroundColor DarkGray
+                $body = @{ profile_id = $pid.Trim() } | ConvertTo-Json
+                $r = Invoke-API "/api/verification/evaluate" "POST" $body
+                if ($r) {
+                    $sc = switch ($r.decision) { "approved"{"Green"} "rejected"{"Red"} default{"Yellow"} }
+                    Write-Host "  Decision   : " -NoNewline; Write-Host ($r.decision ?? "—") -ForegroundColor $sc
+                    Write-Host "  Score      : $($r.score ?? '—')%"
+                    Write-Host "  Message    : $($r.message ?? '—')"
+                }
+                Pause-Prompt
+            }
+
+            "6" {
+                $pid = Read-Host "  Profile ID"
+                if ($pid.Trim() -eq "") { continue }
+                Write-Host "  Gateways (comma-separated, e.g. transak,moonpay):"
+                $gwraw = Read-Host "  "
+                $gws   = ($gwraw -split ",") | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ -ne "" }
+                if ($gws.Count -eq 0) { $gws = @("transak") }
+                $body = @{ profile_id = $pid.Trim(); gateways = $gws } | ConvertTo-Json
+                Write-Host "`n  Registering with: $($gws -join ', ')…" -ForegroundColor DarkGray
+                $r = Invoke-API "/api/verification/register-gateways" "POST" $body
+                if ($r) {
+                    Write-Host "  ✅ $($r.message ?? $r.status ?? 'Started — poll profile for results')" -ForegroundColor Green
+                }
+                Pause-Prompt
+            }
+
+            "7" {
+                $rid = Read-Host "  Registration ID"
+                $otp = Read-Host "  OTP code"
+                if ($rid.Trim() -eq "" -or $otp.Trim() -eq "") { continue }
+                $body = @{ registration_id = $rid.Trim(); otp = $otp.Trim() } | ConvertTo-Json
+                $r = Invoke-API "/api/verification/submit-otp" "POST" $body
+                if ($r) {
+                    $oc = if ($r.success) { "Green" } else { "Red" }
+                    Write-Host "  Result: $($r.success ? '✅ OTP accepted' : '❌ OTP rejected')" -ForegroundColor $oc
+                }
+                Pause-Prompt
+            }
+
+            "8" {
+                $vid = Read-Host "  Vendor ID"
+                $pid = Read-Host "  Profile ID (optional)"
+                if ($vid.Trim() -eq "") { continue }
+                $url = "/api/vendors/$($vid.Trim())/transak-verify"
+                if ($pid.Trim() -ne "") { $url += "?profile_id=$($pid.Trim())" }
+                Write-Host "`n  Running Transak verification…" -ForegroundColor DarkGray
+                $r = Invoke-API $url "POST"
+                if ($r) {
+                    $ac = if ($r.approval_chance.percentage -ge 75) { "Green" } elseif ($r.approval_chance.percentage -ge 50) { "Yellow" } else { "Red" }
+                    Write-Host ""
+                    Write-Host "  Vendor         : $($r.vendor_name)" -ForegroundColor White
+                    Write-Host "  KYC Tier       : $($r.kyc_tier_achievable)"
+                    Write-Host "  Approval Chance: " -NoNewline; Write-Host "$($r.approval_chance.percentage)% ($($r.approval_chance.rating))" -ForegroundColor $ac
+                    Write-Host "  Compliance     : $($r.compliance.score)"
+                    Write-Host "  Docs Ready     : $($r.documents.ready_count)/$($r.documents.total_required) ($($r.documents.completeness_pct)%)"
+                    if ($r.documents.missing.Count -gt 0) {
+                        Write-Host "`n  Missing Docs:" -ForegroundColor Yellow
+                        foreach ($d in $r.documents.missing) { Write-Host "    • $($d.label)" -ForegroundColor Red }
+                    }
+                    if ($r.next_steps.Count -gt 0) {
+                        Write-Host "`n  Next Steps:" -ForegroundColor Cyan
+                        foreach ($s in $r.next_steps[0..3]) { Write-Host "    → $s" -ForegroundColor Gray }
+                    }
+                }
+                Pause-Prompt
+            }
+
+            "B" { return }
+        }
+    } while ($true)
+}
+
+function Show-ForceVerifyMenu {
+    do {
+        Write-Banner
+        Write-Host "  ┌─────────────────────────────────────┐" -ForegroundColor DarkGreen
+        Write-Host "  │  ⚡ FORCEVERIFY — GATEWAY ROUTER    │" -ForegroundColor Green
+        Write-Host "  ├─────────────────────────────────────┤" -ForegroundColor DarkGreen
+        Write-Host "  │  [1] Status Summary                 │" -ForegroundColor White
+        Write-Host "  │  [2] List All Providers Ranked      │" -ForegroundColor White
+        Write-Host "  │  [3] Best Pick (any crypto)         │" -ForegroundColor White
+        Write-Host "  │  [4] Best Pick by Crypto            │" -ForegroundColor White
+        Write-Host "  │  [B] Back                           │" -ForegroundColor Yellow
+        Write-Host "  └─────────────────────────────────────┘" -ForegroundColor DarkGreen
+        $choice = (Read-Host "  Choice").Trim().ToUpper()
+        switch ($choice) {
+            "1" {
+                $s = Invoke-API "/api/forceverify/status"
+                if ($s) {
+                    Write-Host "`n  Fully verified: $($s.fully_verified -join ', ')" -ForegroundColor Green
+                    Write-Host "  Partial:        $($s.partial -join ', ')" -ForegroundColor Yellow
+                    Write-Host "  Total known:    $($s.total_known)" -ForegroundColor White
+                }
+                Pause-Prompt
+            }
+            "2" {
+                $r = Invoke-API "/api/forceverify/list"
+                if ($r -and $r.providers) {
+                    Write-Host ""
+                    Write-Host ("  {0,-14} {1,-16} {2,-10} {3,-6} {4,-6} {5,-6} {6,-7}" -f "PROVIDER","TYPE","VERIFIED","FAST","SPOT","FEE%","SCORE") -ForegroundColor Cyan
+                    Write-Host "  ─────────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+                    foreach ($p in $r.providers) {
+                        $color = if ($p.verified -ge 1) { "Green" } elseif ($p.verified -gt 0) { "Yellow" } else { "DarkGray" }
+                        Write-Host ("  {0,-14} {1,-16} {2,-10} {3,-6} {4,-6} {5,-6} {6,-7}" -f $p.name,$p.type,$p.verified,$p.fast,$p.spot_credit,$p.fee_pct,$p.score) -ForegroundColor $color
+                    }
+                }
+                Pause-Prompt
+            }
+            "3" {
+                try {
+                    $b = Invoke-API "/api/forceverify/best"
+                    if ($b) {
+                        Write-Host "`n  ⚡ Best pick: $($b.name)" -ForegroundColor Green
+                        Write-Host "  Type:       $($b.type)" -ForegroundColor White
+                        Write-Host "  Fee:        $($b.fee_pct)%" -ForegroundColor White
+                        Write-Host "  Settle:     $($b.settle_sec) sec" -ForegroundColor White
+                        Write-Host "  Score:      $($b.score)" -ForegroundColor White
+                    }
+                } catch {
+                    Write-Host "  ❌ No 100%-verified provider. Add production keys." -ForegroundColor Red
+                }
+                Pause-Prompt
+            }
+            "4" {
+                $c = Read-Host "  Crypto (BTC/ETH/USDT/USDT_TRX/USDC/SOL)"
+                try {
+                    $b = Invoke-API "/api/forceverify/best?crypto=$($c.Trim().ToUpper())"
+                    if ($b) {
+                        Write-Host "`n  ⚡ Best for $($c.ToUpper()): $($b.name) (score $($b.score))" -ForegroundColor Green
+                    }
+                } catch {
+                    Write-Host "  ❌ No verified provider supports $c." -ForegroundColor Red
+                }
+                Pause-Prompt
+            }
+            "B" { return }
+        }
+    } while ($true)
+}
+
 # ─── Main Loop ────────────────────────────────────────────────────────────────
 do {
     Write-Banner
@@ -1104,7 +1374,9 @@ do {
         "N" { Show-NowPaymentsMenu }
         "K" { Show-KYCMenu         }
         "S" { Show-StripeMenu      }
-        "L" { Show-LockboxMenu     }
+        "L" { Show-LockboxMenu        }
+        "V" { Show-VerificationMenu  }
+        "F" { Show-ForceVerifyMenu   }
         "Q" { Write-Host "`n  Goodbye.`n" -ForegroundColor Yellow; exit 0 }
         default {
             Write-Host "  Invalid choice. Press Enter to try again…" -ForegroundColor Red

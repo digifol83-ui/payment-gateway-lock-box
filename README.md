@@ -89,6 +89,14 @@ curl -X POST http://localhost:8000/orders \
 
 ---
 
+## 📦 Lockbox-to-Wallet Docs
+
+- `LOCKBOX_TO_WALLET_FLOW.md` (end-to-end narrative flow)
+- `LOCKBOX_FLOW_DIAGRAM.txt` (ASCII stage diagram)
+- `LOCKBOX_QUICK_REFERENCE.md` (API + SQL quick reference)
+
+---
+
 ## 📊 Architecture
 
 ```
@@ -154,7 +162,7 @@ ADMIN_API_KEY=sk_live_admin_abc123
 
 # Transak (Fiat→Crypto)
 TRANSAK_API_KEY=your_api_key
-TRANSAK_SECRET=your_secret
+TRANSAK_ACCESS_TOKEN=your_partner_access_token
 TRANSAK_ENV=PRODUCTION  # or STAGING
 
 # Stripe (Cards)

@@ -3,13 +3,9 @@ AI-powered company document parser using Claude.
 Ported from documentParser.ts — extracts directors, shareholders,
 incorporation date, license numbers, and business address from raw document text.
 """
-import re
-import json
-import httpx
-from typing import Optional
-from config import ANTHROPIC_API_KEY
+from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
-CLAUDE_MODEL = "claude-opus-4-6"
+from .anthropic_client import messages_create_json_object
 
 DOCUMENT_TYPES = (
     "MOA", "AOA", "business_license",
@@ -57,38 +53,14 @@ async def parse_company_document(
     instructions = TYPE_INSTRUCTIONS.get(document_type, TYPE_INSTRUCTIONS["other"])
     prompt = f"{instructions}\n\nDocument Content:\n{document_text}\n\nExtract all company information and provide a confidence score (0-100)."
 
-    payload = {
-        "model": CLAUDE_MODEL,
-        "max_tokens": 2048,
-        "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-
-    async with httpx.AsyncClient(timeout=45) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json=payload,
-        )
-
-    if not resp.is_success:
-        raise RuntimeError(f"Claude API error {resp.status_code}: {resp.text}")
-
-    content = ""
-    for block in resp.json().get("content", []):
-        if block.get("type") == "text":
-            content += block.get("text", "")
-
-    content = content.strip()
-    if content.startswith("```"):
-        content = re.sub(r"^```[a-z]*\n?", "", content)
-        content = re.sub(r"\n?```$", "", content)
-
-    parsed = json.loads(content.strip())
+    parsed = await messages_create_json_object(
+        api_key=ANTHROPIC_API_KEY,
+        model=ANTHROPIC_MODEL,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=2048,
+        timeout_s=45.0,
+    )
     return {
         "company_name":       parsed.get("companyName"),
         "registration_number": parsed.get("registrationNumber"),

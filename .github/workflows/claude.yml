@@ -1,0 +1,115 @@
+name: Claude Code Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: contains(github.event.comment.body, '@claude') || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Run Claude Code Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          pip install anthropic requests
+          python - << 'EOF'
+          import os
+          import json
+          import requests
+          from anthropic import Anthropic
+
+          # Get PR info
+          repo = os.getenv('REPO')
+          pr_num = os.getenv('PR_NUMBER')
+          github_token = os.getenv('GITHUB_TOKEN')
+          comment_body = os.getenv('COMMENT_BODY', '')
+          api_key = os.getenv('ANTHROPIC_API_KEY')
+
+          # Fetch PR details
+          headers = {'Authorization': f'token {github_token}'}
+          pr_url = f'https://api.github.com/repos/{repo}/pulls/{pr_num}'
+          pr_data = requests.get(pr_url, headers=headers).json()
+
+          # Get diff
+          diff_url = pr_data['url'].replace('{/number}', '') + '/files'
+          files = requests.get(f'{pr_url}/files', headers=headers).json()
+
+          diff_content = '\n'.join([f['patch'] for f in files if 'patch' in f])
+          title = pr_data.get('title', 'Review requested')
+          description = pr_data.get('body', '')
+
+          # Parse @claude command
+          if '@claude' in comment_body:
+              instruction = comment_body.split('@claude')[1].strip()
+          else:
+              instruction = f"Review this PR: {title}\n\n{description}"
+
+          # Call Claude
+          client = Anthropic()
+          prompt = f"""You are a code review assistant. Review the following PR.
+
+PR Title: {title}
+
+PR Description:
+{description}
+
+Code Changes:
+{diff_content}
+
+Task: {instruction}
+
+Provide a concise review with:
+- Summary of changes
+- Any issues or improvements
+- Approval status"""
+
+          message = client.messages.create(
+              model="claude-opus-4-7",
+              max_tokens=1024,
+              messages=[
+                  {"role": "user", "content": prompt}
+              ]
+          )
+
+          review_text = message.content[0].text
+
+          # Post comment on PR
+          comment_url = f'{pr_url}/comments'
+          requests.post(
+              comment_url,
+              headers=headers,
+              json={'body': f'## Claude Code Review\n\n{review_text}'}
+          )
+
+          print("✅ Review posted to PR")
+          EOF
+
+      - name: Run Tests (if applicable)
+        run: |
+          if [ -f "pytest.ini" ] || [ -d "tests/" ]; then
+            pip install pytest
+            pytest tests/ -v --tb=short || true
+          fi

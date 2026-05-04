@@ -174,6 +174,6 @@ async def lookup_company_with_retry(
 def is_configured() -> dict:
     return {
         "enabled":     bool(OPENCORPORATES_API_TOKEN),
-        "api_token":   f"{OPENCORPORATES_API_TOKEN[:8]}…" if OPENCORPORATES_API_TOKEN else "NOT SET",
+        "api_token":   "SET" if OPENCORPORATES_API_TOKEN else "NOT SET",
         "jurisdictions": list(JURISDICTION_MAP.keys()),
     }

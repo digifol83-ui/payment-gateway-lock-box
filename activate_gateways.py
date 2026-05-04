@@ -46,6 +46,11 @@ GATEWAYS = {
         "env_var": "NOWPAYMENTS_ENV",
         "desc": "Direct crypto payments (no KYC)",
     },
+    "metamask": {
+        "keys": ["METAMASK_API_KEY", "METAMASK_SECRET", "METAMASK_WEBHOOK_SECRET"],
+        "env_var": "METAMASK_ENV",
+        "desc": "Native MetaMask widget, 160+ countries, instant to wallet",
+    },
 }
 
 

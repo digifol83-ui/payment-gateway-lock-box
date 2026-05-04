@@ -113,6 +113,7 @@ MENU = [
     ("7", "Add Merchant",              "cyan"),
     ("8", "Export CSV",               "cyan"),
     ("9", "Health Check",             "cyan"),
+    ("O", "Customer Checkout",        "green"),
     ("V", "Merchant Verification",    "magenta"),
     ("T", "Telegram",                 "blue"),
     ("W", "WhatsApp",                 "blue"),
@@ -955,6 +956,131 @@ def screen_lockbox():
     pause()
 
 
+# ─── Customer Checkout Flow ───────────────────────────────────────────────────
+
+def screen_checkout():
+    """100% checkout flow in TUI: details → OTP → provider → payment."""
+    draw_banner()
+    console.print(Panel("[bold green]🛒 Customer Checkout[/]", border_style="green", width=50))
+
+    # Step 1: Get customer details
+    console.print("\n[bold]Step 1: Your Details[/]")
+    fname = Prompt.ask("  First name", default="Test")
+    lname = Prompt.ask("  Last name", default="User")
+    email = Prompt.ask("  Email", default="test@example.com")
+    phone = Prompt.ask("  Phone (optional)", default="")
+
+    console.print("\n[bold]Step 2: Payment Details[/]")
+    amount = float(Prompt.ask("  Amount (AED)", default="500"))
+    crypto = Prompt.ask("  Crypto", choices=["USDT_TRX","USDT","BTC","ETH"], default="USDT_TRX")
+    wallet = Prompt.ask("  Wallet address")
+
+    if amount > 735:
+        console.print(f"  [yellow]⚠️  No-KYC limit is 735 AED. You entered {amount} AED.[/]")
+        console.print("  [dim]Transak will ask for ID verification during payment.[/]")
+
+    # Step 2: Request OTP
+    console.print("\n[bold]Step 3: Email Verification[/]")
+    with console.status("Sending OTP…"):
+        otp_resp = api("POST", "/api/checkout/request-otp", json={
+            "email": email,
+            "name": f"{fname} {lname}",
+            "purpose": "checkout"
+        })
+
+    if not otp_resp:
+        console.print("  [red]Failed to send OTP[/]")
+        pause()
+        return
+
+    if otp_resp.get("dev_otp"):
+        console.print(f"  [yellow]🔧 Test Mode:[/] [bold]{otp_resp['dev_otp']}[/]")
+    else:
+        console.print(f"  [green]✓ OTP sent to {email}[/]")
+
+    otp = Prompt.ask("  Enter 6-digit OTP")
+
+    with console.status("Verifying OTP…"):
+        verify_resp = api("POST", "/api/checkout/verify-otp", json={
+            "email": email,
+            "otp": otp,
+            "purpose": "checkout"
+        })
+
+    if not verify_resp or not verify_resp.get("success"):
+        console.print("  [red]❌ OTP verification failed[/]")
+        pause()
+        return
+
+    console.print("  [green]✓ Email verified[/]")
+
+    # Step 3: Provider selection
+    console.print("\n[bold]Step 4: Choose Provider[/]")
+    with console.status("Loading providers…"):
+        prov_resp = api("GET", "/api/providers/non-otp")
+
+    if prov_resp and prov_resp.get("non_otp_providers"):
+        providers = prov_resp["non_otp_providers"][:4]
+        for i, p in enumerate(providers, 1):
+            kyc = p.get("kyc_type", "").replace("_", " ")
+            console.print(f"  [{i}] {p['name']:20} ({kyc})")
+
+        choice = Prompt.ask("  Choose provider", choices=[str(i) for i in range(1, len(providers)+1)], default="1")
+        provider = providers[int(choice)-1]["id"]
+    else:
+        console.print("  [dim]Using default: Transak[/]")
+        provider = "transak"
+
+    # Step 4: Initiate payment
+    console.print("\n[bold]Step 5: Create Payment[/]")
+    with console.status("Creating payment…"):
+        payment_resp = api("POST", "/api/checkout/initiate", json={
+            "customer_name": f"{fname} {lname}",
+            "customer_email": email,
+            "amount": amount,
+            "fiat_currency": "AED",
+            "crypto_currency": crypto,
+            "wallet_address": wallet,
+            "provider": provider
+        })
+
+    if not payment_resp or not payment_resp.get("provider_url"):
+        err = payment_resp.get("detail", "Unknown error") if payment_resp else "Server error"
+        console.print(f"  [red]❌ Payment creation failed: {err}[/]")
+        pause()
+        return
+
+    payment_id = payment_resp["payment_id"]
+    provider_url = payment_resp["provider_url"]
+
+    console.print(f"  [green]✓ Payment created[/]")
+    console.print(f"  [bold]Payment ID:[/] {payment_id}")
+    console.print(f"  [bold]Amount:[/] {amount} AED")
+    console.print(f"  [bold]Provider:[/] {provider.capitalize()}")
+    console.print(f"  [bold]Status:[/] [yellow]pending[/]")
+
+    console.print(f"\n  [bold cyan]→ Open in browser:[/] {provider_url}")
+    console.print("  [dim]Complete payment on provider's page, then return here to check status.[/]")
+
+    # Step 5: Check status
+    if Confirm.ask("\n  Check payment status?", default=True):
+        with console.status("Fetching status…"):
+            status_resp = api("GET", f"/api/payments/{payment_id}")
+
+        if status_resp:
+            t = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+            t.add_column(style="dim")
+            t.add_column()
+            t.add_row("ID", status_resp.get("id", "—")[:16])
+            t.add_row("Status", sc(status_resp.get("status", "—")))
+            t.add_row("Amount", f"{status_resp.get('amount')} {status_resp.get('fiat_currency')}")
+            t.add_row("Crypto", status_resp.get("crypto_currency", "—"))
+            t.add_row("Created", ts(status_resp.get("created_at", "—")))
+            console.print(Panel(t, title="Payment Status", border_style="green"))
+
+    pause()
+
+
 # ─── Main Loop ────────────────────────────────────────────────────────────────
 DISPATCH = {
     "1": screen_dashboard,
@@ -966,6 +1092,7 @@ DISPATCH = {
     "7": screen_add_merchant,
     "8": screen_export_csv,
     "9": screen_health,
+    "O": screen_checkout,
     "V": screen_verification,
     "T": screen_telegram,
     "W": screen_whatsapp,
