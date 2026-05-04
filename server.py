@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -608,3 +608,71 @@ async def bleap_webhook(payload: dict, db: AsyncDB = Depends(get_db)):
     orchestrator = WebhookOrchestrator(db)
     await orchestrator.process_webhook("bleap", payload)
     return {"status": "received", "provider": "bleap"}
+
+
+@app.post("/webhooks/stripe")
+async def stripe_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """
+    Stripe webhook receiver.
+    - Verifies signature using STRIPE_WEBHOOK_SECRET (if set)
+    - Updates internal payment status using client_reference_id (payment_id)
+    """
+    raw_body = await request.body()
+    signature = request.headers.get("stripe-signature", "")
+
+    stripe = StripeProvider()
+    if not stripe.verify_webhook(raw_body, signature):
+        raise HTTPException(status_code=400, detail="invalid_stripe_signature")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_json")
+
+    event = stripe.parse_webhook(payload)
+    if not event:
+        return {"status": "ignored"}
+
+    payment_id = event["payment_id"]
+    new_status = event["status"]
+    provider_ref = event.get("provider_order_id") or event.get("provider_tx_id")
+
+    # Fetch the payment for notification context (email may be unknown)
+    payment_row = await db.fetchone(
+        "SELECT payment_id, fiat_amount, fiat_currency, crypto_ticker, provider_id, status FROM payments WHERE payment_id = ?",
+        (payment_id,),
+    )
+    if not payment_row:
+        return {"status": "unknown_payment", "payment_id": payment_id}
+
+    await db.execute(
+        """
+        UPDATE payments
+        SET status = ?, provider_id = ?, provider_reference = ?, updated_at = ?
+        WHERE payment_id = ?
+        """,
+        (new_status, "stripe", provider_ref, datetime.utcnow(), payment_id),
+    )
+
+    # Telegram notification (best-effort)
+    try:
+        await notify_payment_update(
+            {
+                "id": payment_row["payment_id"],
+                "amount": payment_row["fiat_amount"],
+                "fiat_currency": payment_row["fiat_currency"],
+                "crypto_currency": payment_row["crypto_ticker"],
+                "provider": "stripe",
+                "customer_email": None,
+            },
+            new_status,
+            extra={
+                "provider_tx_id": event.get("provider_tx_id"),
+                "exchange_rate": event.get("exchange_rate"),
+                "crypto_amount": event.get("crypto_amount"),
+            },
+        )
+    except Exception:
+        pass
+
+    return {"status": "ok", "payment_id": payment_id, "new_status": new_status}
