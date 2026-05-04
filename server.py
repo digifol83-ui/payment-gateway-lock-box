@@ -837,8 +837,67 @@ async def comprehensive_checkout(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Ziina error: {str(e)}")
 
+    elif req.checkout_method == "transak":
+        # Fiat→Crypto via Transak (global, 160+ countries)
+        from providers.transak import TransakProvider
+        transak = TransakProvider()
+        try:
+            order_url = transak.build_widget_url({
+                "id": payment_id,
+                "amount": req.amount_fiat,
+                "fiat_currency": req.fiat_currency,
+                "crypto_currency": req.crypto_currency,
+                "customer_email": req.customer_email,
+                "description": f"BeastPay {req.crypto_currency}"
+            })
+            checkout_url = order_url
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Transak error: {str(e)}")
+
+    elif req.checkout_method == "guardarian":
+        # Fiat→Crypto via Guardarian (170+ countries, 1000+ cryptos)
+        from providers.guardarian import GuardarianProvider
+        guardarian = GuardarianProvider()
+        try:
+            order = await guardarian.create_order({
+                "amount": req.amount_fiat,
+                "fiat": req.fiat_currency,
+                "crypto": req.crypto_currency,
+                "client_id": payment_id,
+                "wallet_address": req.metadata.get("wallet") if req.metadata else None,
+            })
+            checkout_url = order.get("payment_url")
+
+            await db.execute(
+                "UPDATE payments SET provider_order_id = ? WHERE id = ?",
+                (order.get("id"), payment_id)
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Guardarian error: {str(e)}")
+
+    elif req.checkout_method == "moonpay":
+        # Fiat→Crypto via MoonPay (160+ countries, on/off-ramps)
+        from providers.moonpay import MoonPayProvider
+        moonpay = MoonPayProvider()
+        try:
+            session = await moonpay.create_checkout_session({
+                "amount": req.amount_fiat,
+                "currency": req.fiat_currency,
+                "crypto": req.crypto_currency,
+                "customer_email": req.customer_email,
+                "customer_id": payment_id,
+            })
+            checkout_url = session.get("url")
+
+            await db.execute(
+                "UPDATE payments SET provider_tx_id = ? WHERE id = ?",
+                (session.get("transaction_id"), payment_id)
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"MoonPay error: {str(e)}")
+
     elif req.checkout_method == "crypto":
-        # Direct crypto payment (CoinRemitter, Plisio, etc.)
+        # Direct crypto payment (CoinRemitter, Plisio, NOWPayments)
         from providers import get_provider
         provider = get_provider("coinremitter")
         try:
@@ -919,41 +978,236 @@ async def list_checkout_methods():
 
     return {
         "methods": [
+            # CARD PAYMENT GATEWAYS
             {
                 "id": "stripe",
                 "name": "Stripe Card Checkout",
-                "type": "card",
+                "type": "card_hosted",
                 "enabled": stripe_status["enabled"],
                 "mode": stripe_status["mode"],
-                "description": "Hosted Stripe checkout for card payments",
-                "currencies": ["USD", "EUR", "GBP", "AED"],
+                "description": "Hosted Stripe checkout",
+                "regions": ["Global"],
+                "currencies": ["USD", "EUR", "GBP", "AED", "INR"],
             },
             {
                 "id": "lockbox",
                 "name": "Saved Card (Lockbox)",
-                "type": "card",
+                "type": "card_vault",
                 "enabled": True,
-                "description": "Charge a previously stored card from secure vault",
+                "description": "Charge pre-stored encrypted card",
                 "requires": ["card_id"],
             },
             {
                 "id": "ziina",
                 "name": "Ziina AED",
-                "type": "card",
+                "type": "card_local",
                 "enabled": True,
-                "description": "Native AED card payments (UAE)",
+                "description": "Native AED payments (UAE banking)",
+                "regions": ["UAE"],
+                "settlement_time": "instant",
                 "currencies": ["AED"],
             },
+            # FIAT-TO-CRYPTO GATEWAYS
+            {
+                "id": "transak",
+                "name": "Transak",
+                "type": "fiat_to_crypto",
+                "enabled": True,
+                "description": "160+ countries, no KYC for small amounts",
+                "regions": ["UK", "EU", "US", "India", "Australia"],
+                "kyc_free_limit": "$200",
+                "settlement_time": "1-3 hours",
+                "cryptos": ["BTC", "ETH", "USDT", "USDC"],
+            },
+            {
+                "id": "guardarian",
+                "name": "Guardarian",
+                "type": "fiat_to_crypto",
+                "enabled": True,
+                "description": "170+ countries, 1000+ cryptos",
+                "regions": ["Global"],
+                "cryptos": "1000+",
+                "settlement_time": "5-30 minutes",
+            },
+            {
+                "id": "moonpay",
+                "name": "MoonPay",
+                "type": "fiat_to_crypto",
+                "enabled": True,
+                "description": "160+ countries, on/off-ramps",
+                "regions": ["Global"],
+                "settlement_time": "1-2 hours",
+                "features": ["buy", "sell"],
+            },
+            # DIRECT CRYPTO
             {
                 "id": "crypto",
                 "name": "Direct Crypto",
-                "type": "crypto",
+                "type": "crypto_direct",
                 "enabled": True,
-                "description": "Direct cryptocurrency payment (CoinRemitter)",
-                "currencies": ["BTC", "ETH", "USDT"],
+                "description": "CoinRemitter, Plisio, NOWPayments (no KYC)",
+                "settlement_time": "5-30 minutes",
+                "currencies": ["BTC", "ETH", "USDT", "USDC"],
             },
         ]
     }
+
+
+# ─── Additional Gateway Webhooks ────────────────────────────────────────
+
+@app.post("/webhooks/transak")
+async def transak_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """Transak webhook receiver for payment status updates."""
+    payload = await request.json()
+    event_type = payload.get("eventName", "")
+    order_data = payload.get("data", {})
+    payment_id = order_data.get("clientId") or order_data.get("orderId")
+
+    if not payment_id:
+        return {"status": "ignored"}
+
+    status_map = {
+        "ORDER_COMPLETED": "completed",
+        "ORDER_FAILED": "failed",
+        "ORDER_CANCELLED": "failed",
+    }
+
+    new_status = status_map.get(event_type)
+    if not new_status:
+        return {"status": "ignored"}
+
+    await db.execute(
+        "UPDATE payments SET status=?, provider_order_id=?, updated_at=? WHERE id=?",
+        (new_status, order_data.get("id"), datetime.utcnow().isoformat(), payment_id)
+    )
+
+    logger.info(f"Transak webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
+@app.post("/webhooks/guardarian")
+async def guardarian_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """Guardarian webhook receiver for payment status updates."""
+    payload = await request.json()
+    txn_data = payload.get("transaction", {})
+    payment_id = txn_data.get("clientId") or txn_data.get("id")
+
+    if not payment_id:
+        return {"status": "ignored"}
+
+    status = txn_data.get("status", "").lower()
+    status_map = {
+        "completed": "completed",
+        "finished": "completed",
+        "failed": "failed",
+        "cancelled": "failed",
+        "waiting": "pending",
+    }
+
+    new_status = status_map.get(status)
+    if not new_status:
+        return {"status": "ignored"}
+
+    await db.execute(
+        "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
+        (new_status, txn_data.get("id"), datetime.utcnow().isoformat(), payment_id)
+    )
+
+    logger.info(f"Guardarian webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
+@app.post("/webhooks/ziina")
+async def ziina_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """Ziina webhook receiver for AED payment updates."""
+    payload = await request.json()
+    order_data = payload.get("order", {})
+    payment_id = order_data.get("referenceNo") or order_data.get("orderId")
+
+    if not payment_id:
+        return {"status": "ignored"}
+
+    status = order_data.get("status", "").upper()
+    status_map = {
+        "COMPLETED": "completed",
+        "CONFIRMED": "completed",
+        "FAILED": "failed",
+        "CANCELLED": "failed",
+        "PENDING": "pending",
+    }
+
+    new_status = status_map.get(status)
+    if not new_status:
+        return {"status": "ignored"}
+
+    await db.execute(
+        "UPDATE payments SET status=?, provider_order_id=?, updated_at=? WHERE id=?",
+        (new_status, order_data.get("orderId"), datetime.utcnow().isoformat(), payment_id)
+    )
+
+    logger.info(f"Ziina webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
+@app.post("/webhooks/moonpay")
+async def moonpay_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """MoonPay webhook receiver for fiat payment updates."""
+    payload = await request.json()
+    txn_data = payload.get("transaction", {})
+    payment_id = txn_data.get("customerId") or txn_data.get("externalCustomerId")
+
+    if not payment_id:
+        return {"status": "ignored"}
+
+    status = txn_data.get("status", "").lower()
+    status_map = {
+        "completed": "completed",
+        "pending": "pending",
+        "failed": "failed",
+        "cancelled": "failed",
+    }
+
+    new_status = status_map.get(status)
+    if not new_status:
+        return {"status": "ignored"}
+
+    await db.execute(
+        "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
+        (new_status, txn_data.get("id"), datetime.utcnow().isoformat(), payment_id)
+    )
+
+    logger.info(f"MoonPay webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
+@app.post("/webhooks/nowpayments")
+async def nowpayments_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """NOWPayments webhook receiver for direct crypto payments."""
+    payload = await request.json()
+    payment_id = payload.get("order_id") or payload.get("ipn_id")
+
+    if not payment_id:
+        return {"status": "ignored"}
+
+    payment_status = payload.get("payment_status", "")
+    status_map = {
+        "finished": "completed",
+        "confirmed": "completed",
+        "failed": "failed",
+        "pending": "pending",
+    }
+
+    new_status = status_map.get(payment_status)
+    if not new_status:
+        return {"status": "ignored"}
+
+    await db.execute(
+        "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
+        (new_status, payload.get("txid"), datetime.utcnow().isoformat(), payment_id)
+    )
+
+    logger.info(f"NOWPayments webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
 
 
 @app.post("/api/gateway/status")
@@ -965,7 +1219,11 @@ async def gateway_status_check():
         "timestamp": datetime.utcnow().isoformat(),
         "gateways": {
             "stripe": stripe_provider.is_configured(),
+            "transak": {"enabled": True, "mode": "production"},
+            "guardarian": {"enabled": True, "mode": "production"},
             "ziina": {"enabled": True, "mode": "live"},
+            "moonpay": {"enabled": True, "mode": "production"},
+            "nowpayments": {"enabled": True, "mode": "production"},
             "coinremitter": {"enabled": True, "mode": "live"},
             "plisio": {"enabled": True, "mode": "live"},
         }
