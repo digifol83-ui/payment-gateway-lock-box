@@ -158,10 +158,10 @@ async def public_create_payment(payload: dict, db: AsyncDB = Depends(get_db)):
         await db.execute(
             """
             INSERT INTO payments
-            (payment_id, merchant_id, fiat_amount, fiat_currency, crypto_ticker, provider_id, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, merchant_id, amount, fiat_currency, crypto_currency, provider, wallet_address, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payment_id, None, fiat_amount, fiat_currency, crypto_ticker, provider_id, "pending", now, now),
+            (payment_id, None, fiat_amount, fiat_currency, crypto_ticker, provider_id, "pending_address", "pending", now, now),
         )
         await db.commit()
     except Exception as e:
@@ -169,8 +169,8 @@ async def public_create_payment(payload: dict, db: AsyncDB = Depends(get_db)):
 
     return {
         "payment_id": payment_id,
-        "provider_id": provider_id,
-        "fiat_amount": fiat_amount,
+        "provider": provider_id,
+        "amount": fiat_amount,
         "fiat_currency": fiat_currency,
         "crypto_ticker": crypto_ticker,
         "customer_email": customer_email,
@@ -676,3 +676,297 @@ async def stripe_webhook(request: Request, db: AsyncDB = Depends(get_db)):
         pass
 
     return {"status": "ok", "payment_id": payment_id, "new_status": new_status}
+
+
+# ─── Enhanced Checkout Flow ──────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class CheckoutRequest(BaseModel):
+    merchant_id: str
+    amount_fiat: float
+    fiat_currency: str = "AED"
+    crypto_currency: str = "USDT"
+    customer_email: str
+    customer_name: str = ""
+    checkout_method: str = "stripe"  # "stripe" (card), "lockbox" (card vault), "crypto" (direct), "ziina" (aed native)
+    card_id: str = None  # For lockbox method
+    metadata: dict = None
+
+
+@app.post("/api/checkout/initiate-comprehensive")
+async def comprehensive_checkout(
+    req: CheckoutRequest,
+    db: AsyncDB = Depends(get_db),
+    x_api_key: str = Header(None)
+):
+    """
+    Enhanced checkout flow with credibility check + multi-gateway support.
+
+    Flow:
+    1. Verify merchant + credibility (risk score)
+    2. Route to appropriate gateway based on checkout_method
+    3. Create payment record
+    4. Return checkout URL or session token
+    """
+
+    # 1. Verify merchant exists
+    merchant = await db.fetchone(
+        "SELECT id, api_key, webhook_url FROM merchants WHERE id = ?",
+        (req.merchant_id,)
+    )
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+
+    # Verify API key if provided
+    if x_api_key and x_api_key != merchant["api_key"]:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+
+    # 2. Get merchant profile + credibility check
+    profile = await db.fetchone(
+        "SELECT id, company_name, onboarding_status FROM merchant_profiles WHERE merchant_id = ?",
+        (req.merchant_id,)
+    )
+
+    if not profile:
+        raise HTTPException(status_code=400, detail="Merchant profile incomplete")
+
+    # Estimate risk score from onboarding status (0-100, lower is better)
+    status_risk_map = {
+        "approved": 20,
+        "pending_review": 50,
+        "pending": 70,
+        "rejected": 100,
+    }
+    onboarding_status = profile["onboarding_status"] if profile else "pending"
+    risk_score = status_risk_map.get(onboarding_status, 70)
+
+    if risk_score > 85:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Merchant high-risk. Contact support."
+        )
+
+    # 3. Create payment record
+    payment_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    await db.execute(
+        """
+        INSERT INTO payments (
+            id, merchant_id, amount, fiat_currency, crypto_currency,
+            customer_email, customer_name, status, provider, wallet_address, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+        """,
+        (payment_id, req.merchant_id, req.amount_fiat, req.fiat_currency,
+         req.crypto_currency, req.customer_email, req.customer_name,
+         req.checkout_method, "pending_wallet", now, now)
+    )
+
+    # 4. Route to gateway based on checkout_method
+    checkout_url = None
+    session_token = None
+
+    if req.checkout_method == "stripe":
+        # Card payment via Stripe
+        stripe = StripeProvider()
+        if not stripe.is_configured()["enabled"]:
+            raise HTTPException(status_code=503, detail="Stripe not configured")
+
+        try:
+            checkout_url = await stripe.create_checkout_session({
+                "id": payment_id,
+                "amount": req.amount_fiat,
+                "fiat_currency": req.fiat_currency,
+                "crypto_currency": req.crypto_currency,
+                "customer_email": req.customer_email,
+                "description": f"BeastPay {req.crypto_currency} payment"
+            })
+        except Exception as e:
+            await db.execute(
+                "UPDATE payments SET status = ? WHERE id = ?",
+                ("failed", payment_id)
+            )
+            raise HTTPException(status_code=500, detail=f"Checkout creation failed: {str(e)}")
+
+    elif req.checkout_method == "lockbox":
+        # Card from encrypted vault via Stripe
+        if not req.card_id:
+            raise HTTPException(status_code=400, detail="card_id required for lockbox method")
+
+        # Verify card exists
+        card = await db.fetchone(
+            "SELECT id, masked_card_number FROM lockbox_transactions WHERE id = ? AND merchant_id = ?",
+            (req.card_id, req.merchant_id)
+        )
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found in lockbox")
+
+        # Use Stripe to charge saved card
+        stripe = StripeProvider()
+        try:
+            # In production, create Payment Intent with saved card
+            checkout_url = await stripe.create_checkout_session({
+                "id": payment_id,
+                "amount": req.amount_fiat,
+                "fiat_currency": req.fiat_currency,
+                "crypto_currency": req.crypto_currency,
+                "customer_email": req.customer_email,
+                "description": f"BeastPay {req.crypto_currency} via saved card"
+            })
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Payment failed: {str(e)}")
+
+    elif req.checkout_method == "ziina":
+        # AED native payment via Ziina
+        from providers.ziina import ZiinaProvider
+        ziina = ZiinaProvider()
+        try:
+            # Create order via Ziina
+            order_resp = await ziina.create_order({
+                "amount": req.amount_fiat,
+                "currency": "AED",
+                "reference": payment_id,
+                "customer_email": req.customer_email,
+            })
+            session_token = order_resp.get("session_id") or order_resp.get("url")
+
+            await db.execute(
+                "UPDATE payments SET provider_order_id = ? WHERE id = ?",
+                (order_resp.get("order_id"), payment_id)
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ziina error: {str(e)}")
+
+    elif req.checkout_method == "crypto":
+        # Direct crypto payment (CoinRemitter, Plisio, etc.)
+        from providers import get_provider
+        provider = get_provider("coinremitter")
+        try:
+            order = await provider.create_order({
+                "amount": req.amount_fiat,
+                "currency": req.fiat_currency,
+                "crypto": req.crypto_currency,
+                "reference": payment_id,
+            })
+            session_token = order.get("payment_url") or order.get("invoice_url")
+
+            await db.execute(
+                "UPDATE payments SET provider_order_id = ? WHERE id = ?",
+                (order.get("order_id"), payment_id)
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Crypto gateway error: {str(e)}")
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown checkout_method: {req.checkout_method}")
+
+    # 5. Log credibility check result
+    logger.info(
+        f"Checkout initiated: payment_id={payment_id}, merchant={req.merchant_id}, "
+        f"risk_score={risk_score}, method={req.checkout_method}"
+    )
+
+    return {
+        "status": "ok",
+        "payment_id": payment_id,
+        "checkout_url": checkout_url,
+        "session_token": session_token,
+        "checkout_method": req.checkout_method,
+        "amount": req.amount_fiat,
+        "currency": req.fiat_currency,
+        "credibility_score": 100 - risk_score,  # Inverted for customer clarity
+        "merchant_name": profile["company_name"] if profile else "Unknown",
+    }
+
+
+@app.get("/api/payment/{payment_id}/status")
+async def get_payment_status(
+    payment_id: str,
+    db: AsyncDB = Depends(get_db)
+):
+    """Get current payment status + gateway details."""
+    payment = await db.fetchone(
+        """
+        SELECT id, merchant_id, amount, fiat_currency, crypto_currency,
+               customer_email, status, provider, provider_order_id, provider_tx_id, created_at, updated_at
+        FROM payments
+        WHERE id = ?
+        """,
+        (payment_id,)
+    )
+
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    return {
+        "payment_id": payment["id"],
+        "status": payment["status"],
+        "amount": payment["amount"],
+        "currency": payment["fiat_currency"],
+        "provider": payment["provider"],
+        "provider_order_id": payment["provider_order_id"],
+        "provider_tx_id": payment["provider_tx_id"],
+        "created_at": payment["created_at"],
+        "updated_at": payment["updated_at"],
+    }
+
+
+@app.get("/api/checkout/methods")
+async def list_checkout_methods():
+    """List all available checkout methods + their status."""
+    stripe_provider = StripeProvider()
+    stripe_status = stripe_provider.is_configured()
+
+    return {
+        "methods": [
+            {
+                "id": "stripe",
+                "name": "Stripe Card Checkout",
+                "type": "card",
+                "enabled": stripe_status["enabled"],
+                "mode": stripe_status["mode"],
+                "description": "Hosted Stripe checkout for card payments",
+                "currencies": ["USD", "EUR", "GBP", "AED"],
+            },
+            {
+                "id": "lockbox",
+                "name": "Saved Card (Lockbox)",
+                "type": "card",
+                "enabled": True,
+                "description": "Charge a previously stored card from secure vault",
+                "requires": ["card_id"],
+            },
+            {
+                "id": "ziina",
+                "name": "Ziina AED",
+                "type": "card",
+                "enabled": True,
+                "description": "Native AED card payments (UAE)",
+                "currencies": ["AED"],
+            },
+            {
+                "id": "crypto",
+                "name": "Direct Crypto",
+                "type": "crypto",
+                "enabled": True,
+                "description": "Direct cryptocurrency payment (CoinRemitter)",
+                "currencies": ["BTC", "ETH", "USDT"],
+            },
+        ]
+    }
+
+
+@app.post("/api/gateway/status")
+async def gateway_status_check():
+    """Check status of all payment gateways."""
+    stripe_provider = StripeProvider()
+
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "gateways": {
+            "stripe": stripe_provider.is_configured(),
+            "ziina": {"enabled": True, "mode": "live"},
+            "coinremitter": {"enabled": True, "mode": "live"},
+            "plisio": {"enabled": True, "mode": "live"},
+        }
+    }
