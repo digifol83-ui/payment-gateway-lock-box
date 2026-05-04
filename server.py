@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 # Global DB instance
 db_instance = AsyncDB()
 
+# Global provider cache (lazy-loaded)
+_provider_cache = {}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -67,6 +70,13 @@ app.include_router(lockbox_router)
 
 async def get_db():
     return db_instance
+
+def get_stripe_provider():
+    """Get cached Stripe provider instance."""
+    global _provider_cache
+    if "stripe" not in _provider_cache:
+        _provider_cache["stripe"] = StripeProvider()
+    return _provider_cache["stripe"]
 
 async def verify_api_key(x_api_key: str = Header(...)):
     if x_api_key != settings.ADMIN_API_KEY:
@@ -620,7 +630,7 @@ async def stripe_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     raw_body = await request.body()
     signature = request.headers.get("stripe-signature", "")
 
-    stripe = StripeProvider()
+    stripe = get_stripe_provider()
     if not stripe.verify_webhook(raw_body, signature):
         raise HTTPException(status_code=400, detail="invalid_stripe_signature")
 
@@ -768,7 +778,7 @@ async def comprehensive_checkout(
 
     if req.checkout_method == "stripe":
         # Card payment via Stripe
-        stripe = StripeProvider()
+        stripe = get_stripe_provider()
         if not stripe.is_configured()["enabled"]:
             raise HTTPException(status_code=503, detail="Stripe not configured")
 
@@ -802,7 +812,7 @@ async def comprehensive_checkout(
             raise HTTPException(status_code=404, detail="Card not found in lockbox")
 
         # Use Stripe to charge saved card
-        stripe = StripeProvider()
+        stripe = get_stripe_provider()
         try:
             # In production, create Payment Intent with saved card
             checkout_url = await stripe.create_checkout_session({
@@ -973,7 +983,7 @@ async def get_payment_status(
 @app.get("/api/checkout/methods")
 async def list_checkout_methods():
     """List all available checkout methods + their status."""
-    stripe_provider = StripeProvider()
+    stripe_provider = get_stripe_provider()
     stripe_status = stripe_provider.is_configured()
 
     return {
@@ -1049,6 +1059,144 @@ async def list_checkout_methods():
                 "settlement_time": "5-30 minutes",
                 "currencies": ["BTC", "ETH", "USDT", "USDC"],
             },
+        ]
+    }
+
+
+# ─── Card Entry & Lockbox Storage ───────────────────────────────────────
+
+@app.get("/card-entry")
+async def card_entry_page():
+    """Serve card entry form."""
+    html_file = os.path.join(os.path.dirname(__file__), "web", "card-entry.html")
+    if not os.path.exists(html_file):
+        return JSONResponse(status_code=404, content={"error": "Card entry form not found"})
+
+    with open(html_file, 'r') as f:
+        return HTMLResponse(content=f.read())
+
+
+class CardStoreRequest(BaseModel):
+    cardholder_name: str
+    card_number: str
+    expiry_date: str
+    cvv: str
+    billing_street: str = ""
+    billing_city: str = ""
+    billing_state: str = ""
+    billing_zip: str = ""
+
+
+@app.post("/api/lockbox/store-card")
+async def store_card_in_lockbox(req: CardStoreRequest, db: AsyncDB = Depends(get_db)):
+    """
+    Store encrypted card in lockbox.
+    Returns card_id for future charging.
+    """
+    from verification.encryption import encrypt_credential, mask_credential
+    from config import CREDENTIAL_ENCRYPTION_KEY
+
+    # Validate card format
+    if len(req.card_number) < 13 or not req.card_number.isdigit():
+        raise HTTPException(status_code=400, detail="Invalid card number")
+
+    if len(req.cvv) < 3:
+        raise HTTPException(status_code=400, detail="Invalid CVV")
+
+    card_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    # Create encrypted bundle
+    card_data = {
+        "cardholder": req.cardholder_name,
+        "card_number": req.card_number,
+        "expiry": req.expiry_date,
+        "cvv": req.cvv,
+        "billing": {
+            "street": req.billing_street,
+            "city": req.billing_city,
+            "state": req.billing_state,
+            "zip": req.billing_zip,
+        }
+    }
+
+    encrypted_bundle = encrypt_credential(
+        json.dumps(card_data),
+        CREDENTIAL_ENCRYPTION_KEY
+    )
+
+    masked_number = mask_credential(req.card_number)
+
+    # Store in lockbox_transactions
+    try:
+        await db.execute(
+            """
+            INSERT INTO lockbox_transactions
+            (id, raw_input, masked_card_number, card_number, expiry_date, cvv,
+             cardholder_name, billing_street, billing_city, billing_state, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (card_id, json.dumps(card_data), masked_number,
+             encrypt_credential(req.card_number, CREDENTIAL_ENCRYPTION_KEY),
+             encrypt_credential(req.expiry_date, CREDENTIAL_ENCRYPTION_KEY),
+             encrypt_credential(req.cvv, CREDENTIAL_ENCRYPTION_KEY),
+             encrypt_credential(req.cardholder_name, CREDENTIAL_ENCRYPTION_KEY),
+             req.billing_street, req.billing_city, req.billing_state, now)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Storage failed: {str(e)}")
+
+    logger.info(f"Card stored in lockbox: {card_id} → {masked_number}")
+
+    return {
+        "status": "ok",
+        "card_id": card_id,
+        "masked": masked_number,
+        "message": "Card saved securely in vault"
+    }
+
+
+@app.get("/api/lockbox/cards")
+async def list_merchant_cards(
+    merchant_id: str = None,
+    x_api_key: str = Header(None),
+    db: AsyncDB = Depends(get_db)
+):
+    """
+    List saved cards for a merchant.
+    Requires merchant API key.
+    """
+    if not merchant_id or not x_api_key:
+        raise HTTPException(status_code=400, detail="merchant_id and X-Api-Key required")
+
+    # Verify merchant API key
+    merchant = await db.fetchone(
+        "SELECT id FROM merchants WHERE id=? AND api_key=?",
+        (merchant_id, x_api_key)
+    )
+    if not merchant:
+        raise HTTPException(status_code=403, detail="Invalid merchant or API key")
+
+    # List cards (masked only, never return full numbers)
+    cards = await db.fetchall(
+        """
+        SELECT id, masked_card_number, cardholder_name, created_at
+        FROM lockbox_transactions
+        WHERE cardholder_name IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 50
+        """,
+    )
+
+    return {
+        "cards": [
+            {
+                "card_id": card["id"],
+                "masked": card["masked_card_number"],
+                "cardholder": card["cardholder_name"],
+                "created_at": card["created_at"],
+            }
+            for card in cards
         ]
     }
 
