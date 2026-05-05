@@ -1,0 +1,725 @@
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                        LOCKBOX → CRYPTO WALLET: COMPLETE FLOW DIAGRAM                                    ║
+║                              BeastPay Payment Gateway (2026-05-03)                                       ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              STAGE 1: LOCKBOX VALIDATION                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────────────┐
+                              │   CUSTOMER SUBMITS      │
+                              │   CARD DETAILS          │
+                              │ (Number, Expiry, CVV)   │
+                              └────────────┬────────────┘
+                                           │
+                              ┌────────────▼────────────┐
+                              │  LOCKBOX VALIDATION     │
+                              │  ✓ Luhn check          │
+                              │  ✓ Expiry valid        │
+                              │  ✓ CVV length          │
+                              │  ✓ Fraud patterns      │
+                              │  ✓ Address match       │
+                              │  ✓ AI confidence score │
+                              └────────────┬────────────┘
+                                           │
+                        ┌──────────────────┼──────────────────┐
+                        │                  │                  │
+                    confidence ≥ 85    65-85             < 65
+                        │                  │                  │
+                    ✓APPROVED         ⚠REVIEW            ✗REJECTED
+                        │                  │                  │
+                        ▼                  ▼                  ▼
+                  Record saved      Manual review       Decline payment
+                   to lockbox_       required            Send error
+                  transactions                          to customer
+
+                  RECORD FIELDS:
+                  • lockbox_tx_id: 12345
+                  • masked_card: ****1111
+                  • validation_status: "approved"
+                  • confidence_scores: {card: 98, fraud: 5}
+                  • ai_reasoning: "..."
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                          STAGE 2: PAYMENT CREATION & PROVIDER SELECTION                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────────────────────┐
+                    │  PAYMENT CREATION INITIATED      │
+                    │  Payload: {                      │
+                    │    merchant_id,                  │
+                    │    fiat_amount: $1000,           │
+                    │    fiat_currency: USD,           │
+                    │    crypto_currency: USDT,        │
+                    │    wallet_address: 0x74...       │
+                    │  }                               │
+                    └──────────────┬───────────────────┘
+                                   │
+                    ┌──────────────▼───────────────┐
+                    │  STEP 1: LIST PROVIDERS      │
+                    │  ✓ transak (fiat→crypto)    │
+                    │  ✓ stripe (card)            │
+                    │  ✓ coinremitter (crypto)    │
+                    │  ✓ plisio (crypto)          │
+                    │  ✓ nowpayments (crypto)     │
+                    │  ✓ moonpay (fiat→crypto)    │
+                    └──────────────┬───────────────┘
+                                   │
+                    ┌──────────────▼────────────────────┐
+                    │  STEP 2: FILTER BY TYPE           │
+                    │  Requirement: fiat→crypto         │
+                    │  Filtered: [transak, moonpay]     │
+                    └──────────────┬────────────────────┘
+                                   │
+                    ┌──────────────▼────────────────────┐
+                    │  STEP 3: SCORE EACH PROVIDER      │
+                    │                                   │
+                    │  transak:                         │
+                    │  • Status LIVE:           +15     │
+                    │  • USD supported:         +10     │
+                    │  • USDT supported:        +10     │
+                    │  • Fee competitive:       +20     │
+                    │  • Settlement < 1hr:      +10     │
+                    │  • Spot credit: No        +0      │
+                    │  ─────────────────────────        │
+                    │  Score: 85/100 ✓                 │
+                    │                                   │
+                    │  moonpay:                         │
+                    │  • Status SANDBOX:        +0      │
+                    │  Score: 25/100 ✗                 │
+                    └──────────────┬────────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────┐
+                    │  STEP 4: SELECT BEST PROVIDER   │
+                    │  Winner: transak (score: 85)    │
+                    └──────────────┬──────────────────┘
+                                   │
+                    ┌──────────────▼────────────────┐
+                    │  STEP 5: DETERMINE KYC TIER   │
+                    │  Amount: $1000                │
+                    │  < $500 (free):     NO        │
+                    │  < $5000 (email):   YES       │
+                    │  ─────────────────────────    │
+                    │  KYC Tier: email              │
+                    │  (Email verification only)    │
+                    └──────────────┬────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────────────┐
+                    │  STEP 6: CREATE PAYMENT RECORD           │
+                    │  INSERT INTO payments:                   │
+                    │  • payment_id: fb7a82e1-...             │
+                    │  • merchant_id: merc_123                │
+                    │  • fiat_amount: 1000                    │
+                    │  • crypto_currency: USDT                │
+                    │  • provider: transak                    │
+                    │  • status: pending                      │
+                    │  • fee_amount: 20.00 (2% + $10 fixed)   │
+                    │  • created_at: 2026-05-03T14:22:35Z     │
+                    └──────────────┬──────────────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │  ✓ PAYMENT CREATED           │
+                    │  Status: pending              │
+                    │  ID: fb7a82e1-...            │
+                    └──────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                             STAGE 3: EXCHANGE RATE LOCKING                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────────────┐
+                    │  LOCK EXCHANGE RATE      │
+                    │  Duration: 15 minutes    │
+                    └──────────────┬───────────┘
+                                   │
+                    ┌──────────────▼──────────────────┐
+                    │  FETCH CURRENT RATE              │
+                    │  Source: CoinGecko API           │
+                    │  From: USD                       │
+                    │  To: USDT                        │
+                    │  Rate: 1.0001 USDT per USD       │
+                    └──────────────┬──────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────┐
+                    │  CALCULATE CONVERSION            │
+                    │  Formula: Amount / Rate          │
+                    │  Calculation:                    │
+                    │    1000 USD ÷ 1.0001            │
+                    │    = 999.90 USDT                 │
+                    │                                 │
+                    │  (8 decimals for precision)     │
+                    └──────────────┬──────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────────────┐
+                    │  STORE RATE LOCK                         │
+                    │  UPDATE payments SET:                    │
+                    │  • exchange_rate: 1.0001                │
+                    │  • crypto_amount: 999.90                │
+                    │  • rate_locked_until: +15min            │
+                    │                                         │
+                    │  Lock expires at: 14:37:35 UTC         │
+                    └──────────────┬──────────────────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │  ✓ RATE LOCKED               │
+                    │  Customer: 999.90 USDT       │
+                    │  Provider: transak           │
+                    │  Valid until: 2026-05-03     │
+                    │             14:37:35 UTC     │
+                    └──────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                    STAGE 4A: FIAT→CRYPTO (Transak Route)                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌────────────────────────────┐
+                    │  BUILD TRANSAK CHECKOUT    │
+                    │  URL with params:          │
+                    │  • apiKey: TRANSAK_API_KEY │
+                    │  • walletAddress: 0x74...  │
+                    │  • fiatAmount: 1000        │
+                    │  • fiatCurrency: USD       │
+                    │  • cryptoCurrency: USDT    │
+                    │  • network: ethereum       │
+                    │  • partnerOrderId:         │
+                    │    fb7a82e1-...            │
+                    └────────────┬───────────────┘
+                                 │
+                    ┌────────────▼─────────────────────┐
+                    │  REDIRECT CUSTOMER                │
+                    │  → https://global.transak.com?   │
+                    │    apiKey=...&walletAddress=...  │
+                    └────────────┬─────────────────────┘
+                                 │
+                    ┌────────────▼─────────────────────┐
+                    │  CUSTOMER COMPLETES CHECKOUT      │
+                    │  1. Transak SDK loads             │
+                    │  2. Customer enters payment       │
+                    │     method (card, bank, etc.)     │
+                    │  3. Transak validates with        │
+                    │     payment processor             │
+                    │  4. Payment approved              │
+                    └────────────┬─────────────────────┘
+                                 │
+                    ┌────────────▼────────────────────────┐
+                    │  TRANSAK PROCESSES                   │
+                    │  1. Deducts fiat from customer card  │
+                    │  2. Applies Transak fees             │
+                    │  3. Calculates crypto @ rate         │
+                    │  4. Sends crypto to wallet           │
+                    │  5. Records transaction              │
+                    └────────────┬────────────────────────┘
+                                 │
+                    ┌────────────▼─────────────────────────┐
+                    │  TRANSAK SENDS WEBHOOK                │
+                    │  POST /webhooks/transak               │
+                    │                                      │
+                    │  Payload:                             │
+                    │  {                                    │
+                    │    "event": "ORDER_COMPLETED",        │
+                    │    "data": {                          │
+                    │      "id": "transak_order_12345",     │
+                    │      "partnerOrderId":                │
+                    │        "fb7a82e1-...",               │
+                    │      "status": "COMPLETED",           │
+                    │      "cryptoAmount": "999.5",         │
+                    │      "cryptoCurrency": "USDT",        │
+                    │      "walletAddress": "0x742d35Cc..." │
+                    │    }                                  │
+                    │  }                                    │
+                    └────────────┬─────────────────────────┘
+                                 │
+                    ┌────────────▼──────────────────────────┐
+                    │  BEASTPAY WEBHOOK PROCESSING           │
+                    │  1. Verify webhook signature           │
+                    │  2. Parse webhook                      │
+                    │  3. Extract payment_id:                │
+                    │     "fb7a82e1-..."                     │
+                    │  4. Look up payment record             │
+                    │  5. Update status: pending→processing  │
+                    │  6. Store crypto_amount: 999.5         │
+                    │  7. Fire: "payment.processing" webhook │
+                    │     to merchant                        │
+                    └────────────┬──────────────────────────┘
+                                 │
+                    ┌────────────▼──────────────────────────┐
+                    │  CUSTOMER'S WALLET                     │
+                    │                                       │
+                    │  Before:                               │
+                    │  0 USDT                                │
+                    │                                       │
+                    │  After:                                │
+                    │  999.5 USDT (in wallet!)              │
+                    │  Address: 0x742d35Cc...               │
+                    │  Block: 20421000                       │
+                    │  TX Hash: 0xabc123def456...            │
+                    │                                       │
+                    │  Status: ✓ RECEIVED & CONFIRMED       │
+                    └────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                    STAGE 4B: CRYPTO→CRYPTO (CoinRemitter Route)                                         │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌────────────────────────────┐
+                    │  CREATE COINREMITTER        │
+                    │  INVOICE                   │
+                    │                            │
+                    │  API Call:                 │
+                    │  POST /v1/invoice/create   │
+                    │                            │
+                    │  Body:                     │
+                    │  {                         │
+                    │    "fiat_amount": 1000,    │
+                    │    "fiat_currency": "USD", │
+                    │    "notify_url": "/....",  │
+                    │    "custom_data1":         │
+                    │      "fb7a82e1-..."        │
+                    │  }                         │
+                    └────────────┬───────────────┘
+                                 │
+                    ┌────────────▼────────────────────┐
+                    │  COINREMITTER RESPONSE           │
+                    │                                 │
+                    │  {                              │
+                    │    "invoice_id":                │
+                    │      "cr_inv_789",              │
+                    │    "address":                   │
+                    │      "0x1234567890...",         │
+                    │    "amount": "999.5 USDT",      │
+                    │    "status": 0 (pending),       │
+                    │    "qr_code": "data:image/.." │
+                    │  }                              │
+                    └────────────┬────────────────────┘
+                                 │
+                    ┌────────────▼────────────────────┐
+                    │  CUSTOMER SENDS CRYPTO            │
+                    │                                 │
+                    │  1. Customer receives:           │
+                    │     - Deposit address            │
+                    │     - QR code                    │
+                    │     - Amount needed: 999.5 USDT │
+                    │                                 │
+                    │  2. Customer opens wallet:       │
+                    │     MetaMask / Coinbase / etc.   │
+                    │                                 │
+                    │  3. Scans QR or enters address   │
+                    │                                 │
+                    │  4. Sends 999.5 USDT to:        │
+                    │     0x1234567890abcdef...        │
+                    │                                 │
+                    │  5. Transaction broadcast        │
+                    │     to Ethereum blockchain       │
+                    └────────────┬────────────────────┘
+                                 │
+                    ┌────────────▼────────────────────┐
+                    │  BLOCKCHAIN CONFIRMATION          │
+                    │                                 │
+                    │  1. On-chain tx propagates      │
+                    │  2. Miners/validators collect   │
+                    │  3. Tx mined in block ~12 sec   │
+                    │  4. First confirmation          │
+                    │  5. More blocks added           │
+                    │  6. After 12 confirmations:     │
+                    │     FINALIZED                   │
+                    │  (Total ~3 minutes)             │
+                    └────────────┬────────────────────┘
+                                 │
+                    ┌────────────▼────────────────────────────┐
+                    │  COINREMITTER DETECTS PAYMENT            │
+                    │                                        │
+                    │  1. Monitors pool address               │
+                    │  2. Sees incoming 999.5 USDT tx         │
+                    │  3. Waits for confirmations             │
+                    │  4. Updates invoice: status → 1 (paid) │
+                    │  5. Sends webhook to BeastPay           │
+                    └────────────┬────────────────────────────┘
+                                 │
+                    ┌────────────▼──────────────────────────┐
+                    │  BEASTPAY WEBHOOK PROCESSING            │
+                    │                                       │
+                    │  Webhook Payload:                      │
+                    │  {                                     │
+                    │    "invoice_id": "cr_inv_789",         │
+                    │    "status_code": 1,  /* paid */       │
+                    │    "paid_amount": "999.5",             │
+                    │    "transaction_id":                   │
+                    │      "0xabc123...",                    │
+                    │    "custom_data1":                     │
+                    │      "fb7a82e1-..."                    │
+                    │  }                                     │
+                    │                                       │
+                    │  Processing:                           │
+                    │  1. Verify webhook signature           │
+                    │  2. Parse payment_id                   │
+                    │  3. Verify via API: GET /invoice/get   │
+                    │  4. Update payment record:             │
+                    │     status → completed                 │
+                    │  5. Store tx_id, crypto_amount         │
+                    │  6. Fire merchant webhook              │
+                    └────────────┬──────────────────────────┘
+                                 │
+                    ┌────────────▼──────────────────────────┐
+                    │  CUSTOMER'S WALLET (NO CHANGE)         │
+                    │                                       │
+                    │  Before:  1000 USDT (customer's)      │
+                    │  After:   (1000 - 999.5) + received   │
+                    │           = funds received from       │
+                    │             CoinRemitter              │
+                    │                                       │
+                    │  Net Effect:                           │
+                    │  Customer's wallet ← 999.5 USDT        │
+                    │  (minus on-chain gas fees)             │
+                    └────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                       STAGE 5: PAYMENT STATUS TRANSITIONS                                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    pending
+                       │
+                    [Rate locked]
+                       │
+                       ▼
+                  processing
+                       │
+                    [Provider webhook received]
+                       │
+                       ▼
+                  completed
+                       │
+                    [Merchant notified]
+                       │
+                       ▼
+                    (optional) failed
+                       │
+                    [If refunded / disputed]
+
+    PAYMENT STATE AT EACH MILESTONE:
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ MILESTONE 1: Created (14:22:35)                                  │
+    │                                                                  │
+    │ {                                                                │
+    │   "payment_id": "fb7a82e1-...",                                 │
+    │   "status": "pending",                                          │
+    │   "fiat_amount": 1000,                                          │
+    │   "crypto_amount": null,  ◄─ Not yet calculated               │
+    │   "provider_tx_id": null,  ◄─ Not yet received                │
+    │   "updated_at": "14:22:35"                                      │
+    │ }                                                                │
+    └──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ MILESTONE 2: Rate Locked (14:22:45)                              │
+    │                                                                  │
+    │ {                                                                │
+    │   "status": "pending",                                          │
+    │   "exchange_rate": 1.0001,  ◄─ LOCKED for 15 minutes          │
+    │   "crypto_amount": 999.90,   ◄─ CALCULATED                     │
+    │   "rate_locked_until": "14:37:35",                             │
+    │   "updated_at": "14:22:45"                                      │
+    │ }                                                                │
+    └──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ MILESTONE 3: Processing (14:25:00)                               │
+    │ [Provider webhook received: Transak / CoinRemitter]             │
+    │                                                                  │
+    │ {                                                                │
+    │   "status": "processing",  ◄─ Provider received payment        │
+    │   "provider_tx_id": "transak_order_12345" or "0xabc123...",   │
+    │   "crypto_amount": 999.5,   ◄─ CONFIRMED by provider          │
+    │   "fee_amount": 20.00,      ◄─ FINALIZED                       │
+    │   "updated_at": "14:25:00"                                      │
+    │ }                                                                │
+    └──────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ MILESTONE 4: Completed (14:26:00)                                │
+    │ [Crypto delivered to wallet]                                    │
+    │                                                                  │
+    │ {                                                                │
+    │   "status": "completed",  ◄─ ✓ DONE                            │
+    │   "wallet_address": "0x742d35Cc...",                           │
+    │   "crypto_delivered": true,                                    │
+    │   "completed_at": "14:26:00",                                   │
+    │   "updated_at": "14:26:00"                                      │
+    │ }                                                                │
+    └──────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                       STAGE 6: MERCHANT WEBHOOK NOTIFICATION                                            │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+        ┌─────────────────────────────────────────────────────┐
+        │  WEBHOOK #1: payment.pending (optional)             │
+        │  Fired when: Payment created                        │
+        │  Use: Merchant tracks funnel                        │
+        │                                                     │
+        │  POST /merchant-webhook-url                        │
+        │  {                                                  │
+        │    "event_type": "payment.pending",                │
+        │    "data": {                                        │
+        │      "payment_id": "fb7a82e1-...",                │
+        │      "status": "pending",                          │
+        │      "amount": {                                    │
+        │        "fiat": 1000,                               │
+        │        "fiat_currency": "USD"                      │
+        │      }                                              │
+        │    },                                               │
+        │    "timestamp": "2026-05-03T14:22:35Z"            │
+        │  }                                                  │
+        │                                                     │
+        │  Merchant verifies signature:                       │
+        │  HMAC_SHA256(secret, payload) = header signature   │
+        │                                                     │
+        │  Merchant responds: 200 OK                         │
+        └─────────────────────────────────────────────────────┘
+                               ▼
+        ┌─────────────────────────────────────────────────────┐
+        │  WEBHOOK #2: payment.processing                     │
+        │  Fired when: Provider webhook received              │
+        │  Use: Merchant knows settlement is in progress      │
+        │                                                     │
+        │  POST /merchant-webhook-url                        │
+        │  {                                                  │
+        │    "event_type": "payment.processing",             │
+        │    "data": {                                        │
+        │      "payment_id": "fb7a82e1-...",                │
+        │      "status": "processing",                       │
+        │      "provider": {                                 │
+        │        "name": "transak",                          │
+        │        "provider_tx_id": "transak_order_12345"    │
+        │      },                                             │
+        │      "amount": {                                    │
+        │        "crypto": 999.5,                            │
+        │        "crypto_currency": "USDT"                   │
+        │      }                                              │
+        │    },                                               │
+        │    "timestamp": "2026-05-03T14:25:00Z"            │
+        │  }                                                  │
+        │                                                     │
+        │  Merchant verifies & logs                          │
+        │  Merchant responds: 200 OK                         │
+        └─────────────────────────────────────────────────────┘
+                               ▼
+        ┌─────────────────────────────────────────────────────┐
+        │  WEBHOOK #3: payment.completed  ← MOST IMPORTANT    │
+        │  Fired when: Crypto delivered to wallet             │
+        │  Use: Merchant delivers goods/services              │
+        │                                                     │
+        │  POST /merchant-webhook-url                        │
+        │  {                                                  │
+        │    "event_type": "payment.completed",              │
+        │    "data": {                                        │
+        │      "payment_id": "fb7a82e1-...",                │
+        │      "status": "completed",                        │
+        │      "amount": {                                    │
+        │        "fiat": 1000,                               │
+        │        "fiat_currency": "USD",                     │
+        │        "crypto": 999.5,                            │
+        │        "crypto_currency": "USDT",                  │
+        │        "fees": 20.00,                              │
+        │        "exchange_rate": 1.0001                     │
+        │      },                                             │
+        │      "wallet_address":                             │
+        │        "0x742d35Cc6634C0532925a3b844Bc9e7595f...", │
+        │      "customer": {                                  │
+        │        "email": "john@example.com",                │
+        │        "name": "John Smith"                        │
+        │      },                                             │
+        │      "provider": {                                 │
+        │        "name": "transak",                          │
+        │        "provider_tx_id": "transak_order_12345"    │
+        │      },                                             │
+        │      "settled_at": "2026-05-03T14:26:00Z"         │
+        │    },                                               │
+        │    "timestamp": "2026-05-03T14:26:00Z"            │
+        │  }                                                  │
+        │                                                     │
+        │  Webhook Delivery Retry Logic:                     │
+        │  if response != 200:                               │
+        │    Attempt 1: Immediate                           │
+        │    Attempt 2: After 1 sec                         │
+        │    Attempt 3: After 2 sec                         │
+        │    Attempt 4: After 5 sec                         │
+        │    Attempt 5: After 10 sec                        │
+        │                                                     │
+        │  if all_5_fail:                                    │
+        │    Alert ops: Telegram notification               │
+        │    Log as: "webhook_failed"                       │
+        │    Allow: Manual retry endpoint                   │
+        │                                                     │
+        │  Merchant verifies signature & logs                │
+        │  Merchant responds: 200 OK                         │
+        │  Merchant delivers product/service ← KEY ACTION   │
+        └─────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                       STAGE 7: NOTIFICATIONS TO CUSTOMER                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+        ┌───────────────────────────────────────────────┐
+        │  TELEGRAM MESSAGE (to ops)                    │
+        │  Chat ID: 933545457                          │
+        │                                              │
+        │  📊 PAYMENT COMPLETED                        │
+        │  ─────────────────────────────              │
+        │  ID: fb7a82e1-6a3f...                       │
+        │  Customer: john@example.com                 │
+        │  Name: John Smith                           │
+        │                                              │
+        │  Amount: $1,000 USD → 999.5 USDT            │
+        │  Provider: transak                          │
+        │  Status: ✓ Delivered to wallet               │
+        │                                              │
+        │  TX: 0xabc123...                            │
+        │  Wallet: 0x742d35Cc...                      │
+        │  Time: 14:26 UTC                            │
+        │                                              │
+        │  [Button: View in Admin]                    │
+        └───────────────────────────────────────────────┘
+                             │
+        ┌────────────────────▼─────────────────────┐
+        │  WHATSAPP MESSAGE (to customer)           │
+        │  (if WHATSAPP_TOKEN set)                 │
+        │                                          │
+        │  ✅ Payment Confirmed!                   │
+        │                                          │
+        │  Your $1,000 USD has been converted      │
+        │  to 999.5 USDT and sent to your wallet:  │
+        │                                          │
+        │  0x742d35Cc...                           │
+        │                                          │
+        │  Transaction ID:                         │
+        │  transak_order_12345                     │
+        │                                          │
+        │  Settlement: ~10 minutes                 │
+        │  Status: Processing...                   │
+        │                                          │
+        │  Questions?                              │
+        │  support@beastpay.io                     │
+        └────────────────────┬─────────────────────┘
+                             │
+        ┌────────────────────▼─────────────────────┐
+        │  EMAIL CONFIRMATION                       │
+        │  To: john@example.com                    │
+        │  Subject: Payment Confirmation - BeastPay │
+        │                                          │
+        │  Dear John Smith,                        │
+        │                                          │
+        │  Your payment has been successfully     │
+        │  processed!                              │
+        │                                          │
+        │  Amount:         $1,000 USD              │
+        │  Cryptocurrency: 999.5 USDT              │
+        │  Wallet:         0x742d35Cc...          │
+        │  Status:         COMPLETED               │
+        │  Date:           2026-05-03 14:26 UTC   │
+        │  Transaction:    transak_order_12345    │
+        │                                          │
+        │  Your crypto will arrive in your wallet  │
+        │  within 10-30 minutes depending on       │
+        │  network congestion.                     │
+        │                                          │
+        │  Thank you for using BeastPay!           │
+        │  Support: support@beastpay.io            │
+        └────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                       STAGE 8: FINAL DELIVERY TO WALLET                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+        ┌────────────────────────────────────────────────────────────┐
+        │  CUSTOMER'S WALLET: FINAL STATE                            │
+        │                                                            │
+        │  Network:     Ethereum Mainnet                            │
+        │  Token:       USDT (Tether) - ERC-20                      │
+        │  Address:     0x742d35Cc6634C0532925a3b844Bc...          │
+        │  Amount:      999.5 USDT  ✓ RECEIVED                     │
+        │                                                            │
+        │  Transaction:                                             │
+        │  ├─ Block:          20,421,000                            │
+        │  ├─ TX Hash:        0xabc123def456...                    │
+        │  ├─ From:           0x1234567890 (Transak/CoinRemitter)   │
+        │  ├─ To:             0x742d35Cc... (Customer)              │
+        │  ├─ Confirmations:  12+ (FINALIZED)                      │
+        │  ├─ Timestamp:      2026-05-03 14:26:15 UTC              │
+        │  └─ Status:         ✓ SUCCESS                             │
+        │                                                            │
+        │  ✓ Customer can now use funds!                           │
+        │    • Transfer to exchange                                 │
+        │    • Trade for other crypto                              │
+        │    • Hold for long-term                                  │
+        │    • Bridge to other chains                              │
+        └────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                          TIMING SUMMARY                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+    Stage                              Duration        Notes
+    ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    Lockbox Validation                 < 1 sec         AI checks (Luhn, fraud, confidence)
+    Payment Creation                   < 100ms         DB write + provider selection
+    Rate Locking                       < 500ms         CoinGecko API call
+    Provider Checkout (customer)       3-10 min        User interaction required
+    Provider Processing                1-30 min        Transak/CoinRemitter internal
+    Blockchain Confirmation            1-15 min        Network-dependent (Ethereum)
+    Webhook Delivery                   < 5 sec         Retry logic up to 5x
+    ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    TOTAL (best case)                  ~5-10 min
+    TOTAL (worst case)                 ~30+ min        (Network congestion, retries)
+
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                          FEE BREAKDOWN                                                                   │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+    Customer's Input:             $1,000 USD
+    ───────────────────────────────────────────────────
+    Transak Fees:
+      Percentage Fee:  2.0% of $1000          = $20.00
+      Fixed Fee:       Per-transaction        = $10.00
+      ─────────────────────────────────
+      Total Transak Fee:                      = $30.00
+    ───────────────────────────────────────────────────
+    Gateway handles:             $970.00 USD
+    ───────────────────────────────────────────────────
+
+    Breakdown:
+      BeastPay Revenue:    0.5% of $1000      = $5.00
+      Provider Cost:       $25.00
+      ─────────────────────────────
+                           = $30.00 (Transak fee)
+
+    ───────────────────────────────────────────────────
+    Exchange Rate Lock:         USD → USDT @ 1.0001
+    ───────────────────────────────────────────────────
+    Crypto Amount:              999.90 USDT
+    ───────────────────────────────────────────────────
+
+    Customer Receives:           999.90 USDT
+                                 (in wallet)
+
+
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                               END OF FLOW DIAGRAM
+                        Generated: 2026-05-03 by BeastPay Dev
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════
