@@ -1,0 +1,145 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: beastpay-api
+  namespace: default
+  labels:
+    app: beastpay-api
+spec:
+  template:
+    metadata:
+      labels:
+        app: beastpay-api
+    spec:
+      containers:
+        - image: gcr.io/PROJECT_ID/beastpay-api:latest
+          name: beastpay-api
+          ports:
+            - containerPort: 8000
+              name: http1
+          env:
+            # Core settings
+            - name: ENVIRONMENT
+              value: "production"
+            - name: DEBUG
+              value: "false"
+
+            # Database (Cloud SQL)
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: database-url
+
+            # Security
+            - name: CREDENTIAL_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: encryption-key
+
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: admin-api-key
+
+            # Provider keys (from Secret Manager)
+            - name: TRANSAK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: transak-api-key
+
+            - name: TRANSAK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: transak-secret
+
+            - name: BLEAP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: bleap-api-key
+
+            - name: BLEAP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: bleap-secret
+
+            - name: KAST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: kast-api-key
+
+            - name: KAST_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: kast-secret
+
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: stripe-secret-key
+
+            - name: STRIPE_PUBLISHABLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: stripe-publishable-key
+
+            # Messaging
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: beastpay-secrets
+                  key: telegram-bot-token
+
+            - name: TELEGRAM_CHAT_ID
+              value: "933545457"
+
+            - name: TELEGRAM_ENABLED
+              value: "true"
+
+            # API Configuration
+            - name: BASE_URL
+              value: "https://beastpay-api-cs-poc.run.app"
+
+            - name: CORS_ALLOW_ORIGINS
+              value: "*"
+
+          resources:
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+            requests:
+              cpu: "1"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+      serviceAccountName: beastpay-sa
+      timeoutSeconds: 3600
+
+  traffic:
+    - percent: 100
+      latestRevision: true
