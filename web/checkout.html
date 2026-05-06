@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Fiat-to-Crypto Checkout</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .checkout-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .providers-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .providers-section h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .provider-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .provider-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .provider-card.selected {
+            border-color: #667eea;
+            background: #f8faff;
+        }
+
+        .provider-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .provider-details {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .checkout-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 30px;
+        }
+
+        .checkout-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .checkout-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .summary-box {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="checkout-card">
+            <div class="header">
+                <h1>💰 Easy Fiat-to-Crypto Checkout</h1>
+                <p>Convert your fiat to crypto with the best rates</p>
+            </div>
+
+            <div class="content">
+                <!-- Amount & Currency Selection -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="amount">Amount</label>
+                        <input type="number" id="amount" placeholder="100.00" min="1" value="100" />
+                    </div>
+                    <div class="form-group">
+                        <label for="fiatCurrency">Fiat Currency</label>
+                        <select id="fiatCurrency">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="AED">AED</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cryptoCurrency">Receive As</label>
+                        <select id="cryptoCurrency">
+                            <option value="USDC">USDC</option>
+                            <option value="BTC">Bitcoin</option>
+                            <option value="ETH">Ethereum</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" placeholder="you@example.com" />
+                    </div>
+                </div>
+
+                <!-- Payment Summary -->
+                <div class="summary-box" id="summaryBox">
+                    <div class="summary-row">
+                        <span>You Pay:</span>
+                        <span id="payAmount">$100.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>You Get:</span>
+                        <span id="receiveAmount">≈ $100.00</span>
+                    </div>
+                    <div class="summary-row" style="border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px; font-weight: 600;">
+                        <span>Final Amount:</span>
+                        <span id="finalAmount">$100.00</span>
+                    </div>
+                </div>
+
+                <!-- Provider Selection -->
+                <div class="providers-section">
+                    <h2>💳 Select Payment Provider</h2>
+                    <div class="provider-grid" id="providerGrid">
+                        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #999;">
+                            Enter an amount to see available providers
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checkout Button -->
+                <button class="checkout-button" id="checkoutButton" disabled>
+                    Continue to Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const amountInput = document.getElementById('amount');
+        const fiatSelect = document.getElementById('fiatCurrency');
+        const cryptoSelect = document.getElementById('cryptoCurrency');
+        const emailInput = document.getElementById('email');
+        const providerGrid = document.getElementById('providerGrid');
+        const checkoutButton = document.getElementById('checkoutButton');
+        const summaryBox = document.getElementById('summaryBox');
+
+        let selectedProvider = null;
+
+        amountInput.addEventListener('change', updateProviders);
+        fiatSelect.addEventListener('change', updateProviders);
+        checkoutButton.addEventListener('click', checkout);
+
+        function updateProviders() {
+            const amount = parseFloat(amountInput.value);
+            if (!amount || amount < 1) return;
+
+            const providers = [
+                { id: 'bleap', name: 'Bleap', fee: 0, settlement: '3 min', status: '🟡 Sandbox' },
+                { id: 'kast', name: 'KAST Pay', fee: 1.5, settlement: '5 min', status: '🟡 Sandbox' },
+                { id: 'guardarian', name: 'Guardarian', fee: 1.0, settlement: '20 min', status: '🟡 Sandbox' },
+                { id: 'metamask', name: 'MetaMask', fee: 2.5, settlement: '5-10 min', status: '🟢 Live' },
+            ];
+
+            providerGrid.innerHTML = providers.map(p => `
+                <div class="provider-card" onclick="selectProvider('${p.id}', this)">
+                    <div class="provider-name">${p.name}</div>
+                    <div class="provider-details">
+                        <div>Fee: ${p.fee}%</div>
+                        <div>Settlement: ${p.settlement}</div>
+                        <div>${p.status}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            updateSummary(amount);
+            summaryBox.style.display = 'block';
+        }
+
+        function selectProvider(id, element) {
+            document.querySelectorAll('.provider-card').forEach(e => e.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedProvider = id;
+            checkoutButton.disabled = !emailInput.value;
+        }
+
+        function updateSummary(amount) {
+            const firstProvider = document.querySelector('.provider-card');
+            const fee = firstProvider ? parseFloat(firstProvider.innerText.match(/\d+\.?\d*/)[0]) : 0;
+            const feeAmount = (amount * fee) / 100;
+            const finalAmount = amount - feeAmount;
+
+            document.getElementById('payAmount').textContent = `$${amount.toFixed(2)}`;
+            document.getElementById('receiveAmount').textContent = `≈ $${finalAmount.toFixed(2)}`;
+            document.getElementById('finalAmount').textContent = `$${finalAmount.toFixed(2)}`;
+        }
+
+        function checkout() {
+            if (!selectedProvider || !emailInput.value) {
+                alert('Please select a provider and enter email');
+                return;
+            }
+            alert(`[DEMO] Checkout with ${selectedProvider} for $${amountInput.value}`);
+        }
+
+        emailInput.addEventListener('input', () => {
+            checkoutButton.disabled = !emailInput.value || !selectedProvider;
+        });
+
+        updateProviders();
+    </script>
+</body>
+</html>
