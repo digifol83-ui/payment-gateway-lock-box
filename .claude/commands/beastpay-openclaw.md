@@ -14,6 +14,8 @@ Load this full context before doing any work in this project.
 | Telegram ID  | 933545457                             |
 | Root         | /home/kali/payment-gateway/           |
 | Start server | `source .env && uvicorn server:app --host 0.0.0.0 --port 8000` |
+| Gateway status | `python activate_gateways.py --status` |
+| Claude Code MCP | `python3 mcp_beastpay/server.py` |
 
 ---
 
@@ -22,15 +24,17 @@ Load this full context before doing any work in this project.
 ```
 payment-gateway/
 ├── server.py            # FastAPI — all API endpoints + webhooks
-├── database.py          # SQLite — payments, links, merchants
+├── database/            # SQLite migrations + async DB wrapper
 ├── config.py            # All env-var config (providers, Telegram, server)
-├── telegram.py          # Telegram bot notification engine
+├── telegram_notify.py   # Telegram notification engine
 ├── providers/
-│   ├── __init__.py      # Provider registry: get_provider("transak"|"moonpay")
+│   ├── __init__.py      # Provider registry, metadata, live/sandbox status
 │   ├── transak.py       # Transak widget URL builder + webhook parser
-│   └── moonpay.py       # MoonPay widget URL builder + webhook parser
+│   ├── moonpay.py       # MoonPay widget URL builder + webhook parser
+│   ├── stripe.py        # Stripe Checkout Sessions + webhooks
+│   └── metamask.py      # MetaMask order API integration
 ├── web/
-│   ├── pay.html         # Customer payment page (/pay/{link_id})
+│   ├── unified_checkout.html # Public hosted-provider checkout
 │   ├── success.html     # Post-payment success/polling page
 │   └── admin.html       # Admin dashboard SPA (vanilla JS)
 ├── admin.ps1            # PowerShell internal admin console
@@ -80,6 +84,11 @@ Merchant endpoints accept merchant API keys returned at merchant creation.
 ### Key Endpoints
 ```
 GET  /health                        → server liveness
+GET  /checkout                      → public unified checkout page
+POST /api/public/payments           → create public payment record
+POST /api/public/payments/{id}/start/{provider} → return hosted provider checkout URL
+GET  /api/providers/status          → live/sandbox provider status
+POST /api/providers/test            → dry-run provider checkout link generation
 POST /api/merchants                 → create merchant (admin only)
 POST /api/links                     → create payment link
 GET  /api/links                     → list links
@@ -96,6 +105,14 @@ POST /api/telegram/test            → send test ping
 POST /api/telegram/summary         → push stats digest
 GET  /api/config                   → public: supported cryptos, fiats, providers
 ```
+
+### Current Live Gateway Rules
+- Do not bypass provider onboarding or create fake production keys.
+- Real transactions require provider-approved live keys in `.env`.
+- Working local hosted-link integrations: Stripe, Transak, MoonPay, MetaMask.
+- Provider status source: `providers.provider_status_all()` and `python activate_gateways.py --status`.
+- Live env template: `.env.live.example`.
+- Guardarian, Bleap, Kast, Charge, Swapin, and FinchPay still need full provider API implementation before they can create real hosted checkout links.
 
 ### Payment Flow
 1. Merchant calls `POST /api/links` → gets shareable URL

@@ -5,11 +5,12 @@ Activates multiple fiat-to-crypto providers at once.
 
 Usage:
   python3 activate_gateways.py [--gateways transak,guardarian,ziina,moonpay,nowpayments]
+  python3 activate_gateways.py --status
   python3 activate_gateways.py --all  (all available)
   python3 activate_gateways.py  (interactive)
 """
 
-import sys, os, uuid, json, asyncio, sqlite3
+import sys, os, uuid, json, asyncio, sqlite3, secrets
 from datetime import datetime
 from pathlib import Path
 
@@ -31,10 +32,20 @@ GATEWAYS = {
         "env_var": "GUARDARIAN_ENV",
         "desc": "170+ countries, 1000+ cryptos, 30+ fiats",
     },
+    "finchpay": {
+        "keys": ["FINCHPAY_API_KEY", "FINCHPAY_SECRET_KEY"],
+        "env_var": "FINCHPAY_ENV",
+        "desc": "Fiat→Crypto (email-only KYC), backup provider",
+    },
     "ziina": {
         "keys": ["ZIINA_API_TOKEN", "ZIINA_WEBHOOK_SECRET"],
         "env_var": "ZIINA_ENV",
         "desc": "UAE native AED payments (fast settlement)",
+    },
+    "stripe": {
+        "keys": ["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"],
+        "env_var": "STRIPE_ENV",
+        "desc": "Card processor (use live keys for production)",
     },
     "moonpay": {
         "keys": ["MOONPAY_API_KEY", "MOONPAY_SECRET"],
@@ -45,6 +56,26 @@ GATEWAYS = {
         "keys": ["NOWPAYMENTS_API_KEY"],
         "env_var": "NOWPAYMENTS_ENV",
         "desc": "Direct crypto payments (no KYC)",
+    },
+    "kast": {
+        "keys": ["KAST_API_KEY", "KAST_SECRET"],
+        "env_var": "KAST_ENV",
+        "desc": "Instant USDC settlement (fast provider)",
+    },
+    "charge": {
+        "keys": ["CHARGE_API_KEY", "CHARGE_SECRET"],
+        "env_var": "CHARGE_ENV",
+        "desc": "Card-to-crypto payment links (backup provider)",
+    },
+    "swapin": {
+        "keys": ["SWAPIN_API_KEY", "SWAPIN_SECRET"],
+        "env_var": "SWAPIN_ENV",
+        "desc": "Fiat-to-crypto bridge (backup provider)",
+    },
+    "bleap": {
+        "keys": ["BLEAP_API_KEY", "BLEAP_SECRET"],
+        "env_var": "BLEAP_ENV",
+        "desc": "Zero-fee USDC on-ramp (fast provider)",
     },
     "metamask": {
         "keys": ["METAMASK_API_KEY", "METAMASK_SECRET", "METAMASK_WEBHOOK_SECRET"],
@@ -68,10 +99,12 @@ def prompt_gateway_keys(gateway_name: str, gateway_info: dict) -> dict:
             return None
         keys_dict[key_name] = value
 
-    env_modes = ["sandbox", "staging", "production", "live", "test"]
-    env_val = input(f"  {gateway_info['env_var']} ({'/'.join(env_modes)}): ").strip().lower() or "sandbox"
+    env_modes = ["production", "sandbox", "staging", "live", "test"]
+    env_val = input(f"  {gateway_info['env_var']} ({'/'.join(env_modes)}) [production]: ").strip().lower() or "production"
     if env_val not in env_modes:
-        env_val = "sandbox"
+        env_val = "production"
+    if env_val == "live":
+        env_val = "production"
 
     keys_dict[gateway_info["env_var"]] = env_val
     return keys_dict
@@ -79,8 +112,11 @@ def prompt_gateway_keys(gateway_name: str, gateway_info: dict) -> dict:
 
 def update_env_file(gateway_name: str, keys_dict: dict):
     """Write gateway credentials to .env file."""
-    with open(ENV_FILE, "r") as f:
-        lines = f.readlines()
+    if ENV_FILE.exists():
+        with open(ENV_FILE, "r") as f:
+            lines = f.readlines()
+    else:
+        lines = []
 
     new_lines = []
     for line in lines:
@@ -103,12 +139,26 @@ def update_env_file(gateway_name: str, keys_dict: dict):
     print(f"  ✓ Updated .env")
 
 
+def ensure_encryption_key() -> str:
+    """Ensure credentials are encrypted with a real 32-byte hex key."""
+    from config import CREDENTIAL_ENCRYPTION_KEY
+
+    key = (CREDENTIAL_ENCRYPTION_KEY or "").strip()
+    is_hex_64 = len(key) == 64 and all(c in "0123456789abcdefABCDEF" for c in key)
+    if is_hex_64:
+        return key
+
+    key = secrets.token_hex(32)
+    update_env_file("SECURITY", {"CREDENTIAL_ENCRYPTION_KEY": key})
+    print("  ✓ Generated CREDENTIAL_ENCRYPTION_KEY")
+    return key
+
+
 def store_credentials(gateway_name: str, keys_dict: dict):
     """Encrypt and store credentials in database."""
     from verification.encryption import encrypt_credential
-    from config import CREDENTIAL_ENCRYPTION_KEY
 
-    enc_key = CREDENTIAL_ENCRYPTION_KEY
+    enc_key = ensure_encryption_key()
     now = datetime.utcnow().isoformat()
 
     # Prepare encrypted credentials (exclude env vars)
@@ -178,10 +228,26 @@ def store_credentials(gateway_name: str, keys_dict: dict):
     print(f"  ✓ Encrypted credentials in DB")
 
 
+def print_status():
+    """Show provider live/sandbox status without printing secrets."""
+    from providers import provider_status_all
+
+    print("\n" + "="*60)
+    print("  GATEWAY STATUS")
+    print("="*60)
+    for row in provider_status_all():
+        print(f"  {row['id']:15} {row['status']:16} {row['type']}")
+    print("="*60 + "\n")
+
+
 def main():
     print("\n" + "="*60)
     print("  MULTI-GATEWAY ACTIVATION — BeastPay")
     print("="*60)
+
+    if "--status" in sys.argv or "status" in sys.argv:
+        print_status()
+        return
 
     # Determine which gateways to activate
     gateways_to_activate = []

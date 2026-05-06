@@ -100,12 +100,28 @@ class BeastPayMCPServer:
             # Providers
             'beastpay://providers/list': {
                 'name': 'List Providers',
-                'description': 'List all payment providers',
+                'description': 'List all payment providers with live/sandbox status',
                 'inputSchema': {
                     'type': 'object',
                     'properties': {
-                        'verified_only': {'type': 'boolean', 'default': False},
-                        'crypto': {'type': 'string'}
+                        'production_only': {'type': 'boolean', 'default': False},
+                        'type': {'type': 'string', 'enum': ['fiat-to-crypto', 'fiat-only', 'crypto-only']}
+                    }
+                }
+            },
+            'beastpay://providers/status': {
+                'name': 'Provider Status',
+                'description': 'Return all provider live/sandbox status plus live fiat-to-crypto providers',
+                'inputSchema': {'type': 'object', 'properties': {}}
+            },
+            'beastpay://providers/live-fiat-to-crypto': {
+                'name': 'Live Fiat-to-Crypto Providers',
+                'description': 'List production fiat-to-crypto providers filtered by fiat and amount',
+                'inputSchema': {
+                    'type': 'object',
+                    'properties': {
+                        'fiat_currency': {'type': 'string', 'default': 'USD'},
+                        'amount_usd': {'type': 'number'}
                     }
                 }
             },
@@ -117,6 +133,22 @@ class BeastPayMCPServer:
                     'properties': {
                         'crypto': {'type': 'string', 'default': 'BTC'},
                         'sort_by': {'type': 'string', 'enum': ['quality', 'speed', 'fees']}
+                    }
+                }
+            },
+            'beastpay://providers/test-checkout-link': {
+                'name': 'Test Provider Checkout Link',
+                'description': 'Build a provider-hosted checkout URL for providers implemented locally',
+                'inputSchema': {
+                    'type': 'object',
+                    'required': ['provider_id'],
+                    'properties': {
+                        'provider_id': {'type': 'string', 'enum': ['stripe', 'transak', 'moonpay', 'metamask']},
+                        'amount': {'type': 'number', 'default': 100},
+                        'fiat_currency': {'type': 'string', 'default': 'USD'},
+                        'crypto_currency': {'type': 'string', 'default': 'USDC'},
+                        'wallet_address': {'type': 'string'},
+                        'customer_email': {'type': 'string'}
                     }
                 }
             }
@@ -131,7 +163,10 @@ class BeastPayMCPServer:
             'register_merchant': self.register_merchant,
             'run_verification': self.run_verification,
             'list_providers': self.list_providers,
+            'get_provider_status': self.get_provider_status,
+            'list_live_fiat_to_crypto': self.list_live_fiat_to_crypto,
             'rank_providers': self.rank_providers,
+            'test_provider_checkout_link': self.test_provider_checkout_link,
             'get_dashboard_stats': self.get_dashboard_stats,
         }
 
@@ -267,22 +302,46 @@ class BeastPayMCPServer:
 
     # ============= Provider Operations =============
 
-    async def list_providers(self, verified_only: bool = False,
-                            crypto: Optional[str] = None) -> list:
+    async def list_providers(self, production_only: bool = False,
+                            type: Optional[str] = None) -> list:
         """List all payment providers"""
         try:
             from providers import provider_status_all
 
             providers = provider_status_all()
 
-            if verified_only:
-                providers = [p for p in providers if p.get('verified')]
+            if production_only:
+                providers = [p for p in providers if p.get('production')]
 
-            if crypto:
-                providers = [p for p in providers
-                           if crypto in p.get('support_crypto', [])]
+            if type:
+                providers = [p for p in providers if p.get('type') == type]
 
             return providers
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    async def get_provider_status(self) -> dict:
+        """Return provider status without exposing secrets."""
+        try:
+            from providers import list_production_fiat_to_crypto, provider_status_all
+
+            return {
+                'providers': provider_status_all(),
+                'live_fiat_to_crypto': list_production_fiat_to_crypto(),
+            }
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    async def list_live_fiat_to_crypto(self, fiat_currency: Optional[str] = None,
+                                       amount_usd: Optional[float] = None) -> list:
+        """List production fiat-to-crypto providers."""
+        try:
+            from providers import list_production_fiat_to_crypto
+
+            fiat = fiat_currency.upper() if fiat_currency else None
+            return list_production_fiat_to_crypto(fiat_currency=fiat, amount_usd=amount_usd)
 
         except Exception as e:
             return {'error': str(e)}
@@ -302,6 +361,68 @@ class BeastPayMCPServer:
             # else: default quality sort
 
             return ranked
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    async def test_provider_checkout_link(self, provider_id: str, amount: float = 100,
+                                          fiat_currency: str = "USD",
+                                          crypto_currency: str = "USDC",
+                                          wallet_address: Optional[str] = None,
+                                          customer_email: Optional[str] = None) -> dict:
+        """Build a checkout URL for locally implemented provider integrations."""
+        try:
+            import uuid
+            from providers import _is_production
+
+            provider_id = provider_id.lower().strip()
+            payment = {
+                'id': f'test_{uuid.uuid4()}',
+                'amount': float(amount),
+                'amount_fiat': float(amount),
+                'fiat_amount': float(amount),
+                'fiat_currency': fiat_currency.upper(),
+                'crypto_currency': crypto_currency.upper(),
+                'wallet_address': (wallet_address or '').strip(),
+                'customer_email': customer_email,
+                'description': 'BeastPay Claude Code checkout test',
+            }
+
+            if provider_id in {'transak', 'moonpay', 'metamask'} and not payment['wallet_address']:
+                return {'error': 'wallet_address_required'}
+
+            if provider_id == 'transak':
+                from providers.transak import TransakProvider
+                redirect_url = TransakProvider().build_widget_url(payment)
+            elif provider_id == 'moonpay':
+                from providers.moonpay import MoonPayProvider
+                redirect_url = MoonPayProvider().build_widget_url(payment)
+            elif provider_id == 'metamask':
+                from providers.metamask import MetaMaskProvider
+                from config import METAMASK_API_KEY, METAMASK_SECRET, METAMASK_WEBHOOK_SECRET, METAMASK_ENV
+                order = await MetaMaskProvider(
+                    api_key=METAMASK_API_KEY,
+                    secret_key=METAMASK_SECRET,
+                    webhook_secret=METAMASK_WEBHOOK_SECRET,
+                    environment=METAMASK_ENV,
+                ).create_order(payment)
+                if order.get('error'):
+                    return {'error': order['error']}
+                redirect_url = order.get('checkout_url') or order.get('widget_url')
+            elif provider_id == 'stripe':
+                return {
+                    'provider_id': provider_id,
+                    'production': _is_production(provider_id),
+                    'message': 'Stripe checkout creates a live Checkout Session through the FastAPI /api/public/payments/{id}/start/stripe endpoint.',
+                }
+            else:
+                return {'error': f'{provider_id}_provider_checkout_not_implemented_locally'}
+
+            return {
+                'provider_id': provider_id,
+                'production': _is_production(provider_id),
+                'redirect_url': redirect_url,
+            }
 
         except Exception as e:
             return {'error': str(e)}

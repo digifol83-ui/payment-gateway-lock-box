@@ -101,7 +101,7 @@ class TransakProvider:
         if not payment.get("crypto_currency"):
             raise ValueError("crypto_currency is required for Transak checkout")
 
-        base = TRANSAK_BASE_URLS.get(TRANSAK_ENV, TRANSAK_BASE_URLS["STAGING"])
+        base = TRANSAK_BASE_URLS.get((TRANSAK_ENV or "").upper(), TRANSAK_BASE_URLS["STAGING"])
 
         crypto      = payment["crypto_currency"]
         fiat        = payment.get("fiat_currency", "USD")

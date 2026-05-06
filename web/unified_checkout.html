@@ -55,15 +55,14 @@
       <label>Email (optional)</label>
       <input id="email" type="email" placeholder="you@example.com" />
 
+      <label>Destination wallet (required for fiat-to-crypto)</label>
+      <input id="wallet" type="text" placeholder="0x... / T... / bc1..." />
+
       <label>Pay via</label>
       <div class="providers" id="providers">
         <div class="pbtn sel" data-provider="stripe" onclick="selectProvider('stripe')">
           <div class="pname">Stripe</div>
           <div class="pdesc">Card (hosted)</div>
-        </div>
-        <div class="pbtn" data-provider="paypal" onclick="selectProvider('paypal')">
-          <div class="pname">PayPal</div>
-          <div class="pdesc">Wallet/card</div>
         </div>
         <div class="pbtn" data-provider="transak" onclick="selectProvider('transak')">
           <div class="pname">Transak</div>
@@ -72,6 +71,10 @@
         <div class="pbtn" data-provider="moonpay" onclick="selectProvider('moonpay')">
           <div class="pname">MoonPay</div>
           <div class="pdesc">Fiat→crypto</div>
+        </div>
+        <div class="pbtn" data-provider="metamask" onclick="selectProvider('metamask')">
+          <div class="pname">MetaMask</div>
+          <div class="pdesc">Wallet-native</div>
         </div>
       </div>
 
@@ -121,19 +124,22 @@
         if (!(amount > 0)) throw new Error("Enter a valid amount.");
         const crypto = document.getElementById("crypto").value || "USDT";
         const email = (document.getElementById("email").value || "").trim() || null;
+        const wallet = (document.getElementById("wallet").value || "").trim() || null;
+        if (selectedProvider !== "stripe" && !wallet) throw new Error("Enter the destination wallet address.");
 
         if (!paymentId) {
           const r = await fetch(`${API_BASE}/api/public/payments`, {
             method: "POST",
             headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({
-              fiat_amount: amount,
-              fiat_currency: "USD",
-              crypto_ticker: crypto,
-              provider_id: selectedProvider,
-              customer_email: email
-            })
-          });
+	            body: JSON.stringify({
+	              fiat_amount: amount,
+	              fiat_currency: "USD",
+	              crypto_ticker: crypto,
+	              provider_id: selectedProvider,
+	              customer_email: email,
+	              wallet_address: wallet
+	            })
+	          });
           const j = await r.json();
           if (!r.ok) throw new Error(j?.detail || j?.error || "Failed to create payment");
           paymentId = j.payment_id;
@@ -142,7 +148,7 @@
         const r2 = await fetch(`${API_BASE}/api/public/payments/${encodeURIComponent(paymentId)}/start/${encodeURIComponent(selectedProvider)}`, {
           method: "POST",
           headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({})
+          body: JSON.stringify({wallet_address: wallet, customer_email: email})
         });
         const j2 = await r2.json();
         if (!r2.ok) throw new Error(j2?.detail || j2?.error || "Failed to start provider checkout");
@@ -158,4 +164,3 @@
   </script>
 </body>
 </html>
-

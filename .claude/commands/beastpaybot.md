@@ -13,6 +13,8 @@ Chat ID   : 933545457 (@Watchpipe)
 Project   : BeastPay by OpenClaw
 Root      : /home/kali/payment-gateway/
 Start     : source .env && uvicorn server:app --host 0.0.0.0 --port 8000
+Status    : python activate_gateways.py --status
+MCP       : python3 mcp_beastpay/server.py
 Admin UI  : http://localhost:8000/admin
 ```
 
@@ -23,19 +25,35 @@ Admin UI  : http://localhost:8000/admin
 ### Payments
 | Feature | Command / Endpoint |
 |---|---|
+| Public checkout | `GET /checkout` |
+| Create public payment | `POST /api/public/payments` |
+| Start provider checkout | `POST /api/public/payments/{id}/start/{provider}` |
 | Create payment link | `POST /api/links` |
 | Customer pays | `GET /pay/{link_id}` |
 | Initiate checkout | `POST /api/payments/initiate` |
+| Provider status | `GET /api/providers/status` |
+| Provider test link | `POST /api/providers/test` |
 | Payment status | `GET /api/payments/{id}` |
 | List payments | `GET /api/payments` |
 | Stats | `GET /api/stats` |
 
 ### Providers (Fiat→Crypto)
-| Provider | Type | KYC |
+| Provider | Local checkout code | Live key status |
 |---|---|---|
-| Transak | Card / bank | None < $200 |
-| MoonPay | Card / bank | Email only < $150 |
-| NOWPayments | Wallet-to-wallet | None ever |
+| Transak | Yes | `python activate_gateways.py --status` |
+| MoonPay | Yes | `python activate_gateways.py --status` |
+| MetaMask | Yes | `python activate_gateways.py --status` |
+| Guardarian | Stub only | `python activate_gateways.py --status` |
+| Bleap | Stub only | `python activate_gateways.py --status` |
+| Kast | Stub only | `python activate_gateways.py --status` |
+| NOWPayments | Crypto-only | `python activate_gateways.py --status` |
+
+### Claude Code MCP Tools
+| Tool | Purpose |
+|---|---|
+| `get_provider_status` | Show live/sandbox state without exposing secrets |
+| `list_live_fiat_to_crypto` | Return production fiat-to-crypto providers |
+| `test_provider_checkout_link` | Build hosted checkout link for Stripe/Transak/MoonPay/MetaMask paths |
 
 ### Notifications
 | Channel | Status endpoint | Test endpoint |
@@ -91,15 +109,27 @@ pwsh admin.ps1
 # Core
 ADMIN_API_KEY=...
 BASE_URL=http://localhost:8000
+CREDENTIAL_ENCRYPTION_KEY=...
 
 # Telegram (live)
-TELEGRAM_BOT_TOKEN=8423837754:AAFlwGClcUiM20pOWsJs5VJRJKEmQ4CjkS8
-TELEGRAM_CHAT_ID=933545457
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
 
-# WhatsApp (fill in)
-WHATSAPP_TOKEN=
-WHATSAPP_PHONE_ID=
-WHATSAPP_TO=
+# Live gateway keys
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+TRANSAK_API_KEY=...
+TRANSAK_SECRET=...
+TRANSAK_ACCESS_TOKEN=...
+TRANSAK_ENV=PRODUCTION
+MOONPAY_API_KEY=...
+MOONPAY_SECRET=...
+MOONPAY_ENV=production
+METAMASK_API_KEY=...
+METAMASK_SECRET=...
+METAMASK_WEBHOOK_SECRET=...
+METAMASK_ENV=production
 
 # NOWPayments (fill in)
 NOWPAYMENTS_API_KEY=
@@ -116,16 +146,18 @@ SUMSUB_SECRET_KEY=
 | File | Purpose |
 |---|---|
 | `server.py` | FastAPI — all routes |
-| `database.py` | SQLite — payments, links, merchants, kyc_records |
+| `database/` | SQLite migrations and async DB wrapper |
 | `config.py` | All env-var settings |
-| `telegram.py` | Telegram notifications |
+| `telegram_notify.py` | Telegram notifications |
 | `whatsapp.py` | WhatsApp Cloud API notifications |
 | `providers/transak.py` | Transak widget + webhook |
 | `providers/moonpay.py` | MoonPay widget + webhook |
+| `providers/stripe.py` | Stripe Checkout Sessions |
+| `providers/metamask.py` | MetaMask order integration |
 | `providers/nowpayments.py` | NOWPayments invoice + IPN |
 | `kyc/sumsub.py` | Sumsub KYC — applicant, token, webhook |
 | `web/admin.html` | Admin SPA dashboard |
-| `web/pay.html` | Customer payment page |
+| `web/unified_checkout.html` | Public hosted-provider checkout |
 | `web/success.html` | Post-payment status page |
 | `admin.ps1` | PowerShell admin console |
 | `.env` | Live credentials |

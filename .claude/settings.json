@@ -30,6 +30,18 @@
     "PYTHONPATH": "/home/kali/payment-gateway"
   },
 
+  "mcpServers": {
+    "beastpay": {
+      "command": "python3",
+      "args": ["/home/kali/payment-gateway/mcp_beastpay/server.py"],
+      "env": {
+        "BEASTPAY_ROOT": "/home/kali/payment-gateway",
+        "PYTHONPATH": "/home/kali/payment-gateway",
+        "MCP_PORT": "3000"
+      }
+    }
+  },
+
   "hooks": {
     "PreToolUse": [
       {

@@ -157,6 +157,7 @@ async def public_create_payment(payload: dict, db: AsyncDB = Depends(get_db)):
     fiat_currency = (payload.get("fiat_currency") or "USD").strip().upper()
     crypto_ticker = (payload.get("crypto_ticker") or "USDT").strip().upper()
     customer_email = (payload.get("customer_email") or "").strip() or None
+    wallet_address = (payload.get("wallet_address") or "").strip() or "pending_address"
 
     if fiat_amount <= 0:
         raise HTTPException(status_code=400, detail="fiat_amount must be > 0")
@@ -168,12 +169,11 @@ async def public_create_payment(payload: dict, db: AsyncDB = Depends(get_db)):
         await db.execute(
             """
             INSERT INTO payments
-            (id, merchant_id, amount, fiat_currency, crypto_currency, provider, wallet_address, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, merchant_id, amount, fiat_currency, crypto_currency, provider, wallet_address, customer_email, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (payment_id, None, fiat_amount, fiat_currency, crypto_ticker, provider_id, "pending_address", "pending", now, now),
+            (payment_id, None, fiat_amount, fiat_currency, crypto_ticker, provider_id, wallet_address, customer_email, "pending", now, now),
         )
-        await db.commit()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"database_error: {e}")
 
@@ -184,29 +184,58 @@ async def public_create_payment(payload: dict, db: AsyncDB = Depends(get_db)):
         "fiat_currency": fiat_currency,
         "crypto_ticker": crypto_ticker,
         "customer_email": customer_email,
+        "wallet_address": wallet_address,
         "status": "pending",
     }
 
 
 @app.post("/api/public/payments/{payment_id}/start/{provider_id}")
-async def public_start_provider_checkout(payment_id: str, provider_id: str, db: AsyncDB = Depends(get_db)):
+async def public_start_provider_checkout(payment_id: str, provider_id: str, payload: dict | None = None, db: AsyncDB = Depends(get_db)):
     """
     Return a provider-hosted checkout redirect URL.
     Card entry happens on the provider page, not on this server.
     """
     provider_id = (provider_id or "").strip().lower()
+    payload = payload or {}
 
     row = await db.fetchone(
-        "SELECT payment_id, fiat_amount, fiat_currency, crypto_ticker FROM payments WHERE payment_id = ?",
+        """
+        SELECT id, amount, fiat_currency, crypto_currency, wallet_address, customer_email
+        FROM payments
+        WHERE id = ?
+        """,
         (payment_id,),
     )
     if not row:
         raise HTTPException(status_code=404, detail="payment_not_found")
 
-    pid = row["payment_id"]
-    fiat_amount = row["fiat_amount"]
+    pid = row["id"]
+    fiat_amount = row["amount"]
     fiat_currency = row["fiat_currency"]
-    crypto_ticker = row["crypto_ticker"]
+    crypto_ticker = row["crypto_currency"]
+    customer_email = (payload.get("customer_email") or row.get("customer_email") or "").strip() or None
+    wallet_address = (payload.get("wallet_address") or row.get("wallet_address") or "").strip()
+
+    if wallet_address and wallet_address != row.get("wallet_address"):
+        await db.execute(
+            "UPDATE payments SET wallet_address = ?, updated_at = ? WHERE id = ?",
+            (wallet_address, datetime.utcnow().isoformat(), pid),
+        )
+
+    def fiat_to_crypto_payment() -> dict:
+        if not wallet_address or wallet_address == "pending_address":
+            raise HTTPException(status_code=400, detail="wallet_address_required")
+        return {
+            "id": pid,
+            "amount": float(fiat_amount),
+            "amount_fiat": float(fiat_amount),
+            "fiat_amount": float(fiat_amount),
+            "fiat_currency": fiat_currency,
+            "crypto_currency": crypto_ticker,
+            "wallet_address": wallet_address,
+            "customer_email": customer_email,
+            "description": f"BeastPay {crypto_ticker}",
+        }
 
     if provider_id == "stripe":
         stripe = StripeProvider()
@@ -216,21 +245,107 @@ async def public_start_provider_checkout(payment_id: str, provider_id: str, db: 
                 "amount": float(fiat_amount),
                 "fiat_currency": fiat_currency,
                 "crypto_currency": crypto_ticker,
+                "customer_email": customer_email,
                 "description": f"BeastPay · {crypto_ticker}",
             }
         )
         return {"payment_id": pid, "provider_id": provider_id, "redirect_url": redirect_url}
 
     if provider_id == "transak":
-        return {"payment_id": pid, "provider_id": provider_id, "redirect_url": "/static/checkout-transak.html"}
+        from providers.transak import TransakProvider
+        redirect_url = TransakProvider().build_widget_url(fiat_to_crypto_payment())
+        return {"payment_id": pid, "provider_id": provider_id, "redirect_url": redirect_url}
 
     if provider_id == "moonpay":
-        return {"payment_id": pid, "provider_id": provider_id, "redirect_url": "/static/pay.html"}
+        from providers.moonpay import MoonPayProvider
+        redirect_url = MoonPayProvider().build_widget_url(fiat_to_crypto_payment())
+        return {"payment_id": pid, "provider_id": provider_id, "redirect_url": redirect_url}
+
+    if provider_id == "metamask":
+        from providers.metamask import MetaMaskProvider
+        from config import METAMASK_API_KEY, METAMASK_SECRET, METAMASK_WEBHOOK_SECRET, METAMASK_ENV
+
+        order = await MetaMaskProvider(
+            api_key=METAMASK_API_KEY,
+            secret_key=METAMASK_SECRET,
+            webhook_secret=METAMASK_WEBHOOK_SECRET,
+            environment=METAMASK_ENV,
+        ).create_order(fiat_to_crypto_payment())
+        if order.get("error"):
+            raise HTTPException(status_code=502, detail=order["error"])
+        return {
+            "payment_id": pid,
+            "provider_id": provider_id,
+            "redirect_url": order.get("checkout_url") or order.get("widget_url"),
+        }
 
     if provider_id == "paypal":
         raise HTTPException(status_code=501, detail="paypal_not_implemented_yet")
 
     raise HTTPException(status_code=400, detail="unsupported_provider")
+
+
+@app.get("/api/providers/status")
+async def api_provider_status():
+    """Return live/sandbox provider status without exposing secrets."""
+    from providers import list_production_fiat_to_crypto, provider_status_all
+
+    return {
+        "providers": provider_status_all(),
+        "live_fiat_to_crypto": list_production_fiat_to_crypto(),
+    }
+
+
+@app.post("/api/providers/test")
+async def api_provider_test(payload: dict):
+    """Dry-run provider checkout link generation where local provider code supports it."""
+    from providers import _is_production
+
+    provider_id = (payload.get("provider_id") or "").strip().lower()
+    if not provider_id:
+        raise HTTPException(status_code=400, detail="provider_id_required")
+
+    payment = {
+        "id": payload.get("payment_id") or f"test_{uuid.uuid4()}",
+        "amount": float(payload.get("amount") or payload.get("fiat_amount") or 100),
+        "fiat_amount": float(payload.get("amount") or payload.get("fiat_amount") or 100),
+        "fiat_currency": (payload.get("currency") or payload.get("fiat_currency") or "USD").strip().upper(),
+        "crypto_currency": (payload.get("crypto") or payload.get("crypto_currency") or "USDC").strip().upper(),
+        "wallet_address": (payload.get("wallet_address") or "").strip(),
+        "customer_email": (payload.get("customer_email") or "").strip() or None,
+        "description": "BeastPay provider test",
+    }
+
+    if provider_id in {"transak", "moonpay"} and not payment["wallet_address"]:
+        raise HTTPException(status_code=400, detail="wallet_address_required")
+
+    if provider_id == "transak":
+        from providers.transak import TransakProvider
+        return {
+            "provider_id": provider_id,
+            "production": _is_production(provider_id),
+            "redirect_url": TransakProvider().build_widget_url(payment),
+        }
+
+    if provider_id == "moonpay":
+        from providers.moonpay import MoonPayProvider
+        return {
+            "provider_id": provider_id,
+            "production": _is_production(provider_id),
+            "redirect_url": MoonPayProvider().build_widget_url(payment),
+        }
+
+    if provider_id == "stripe":
+        return {
+            "provider_id": provider_id,
+            "production": _is_production(provider_id),
+            "message": "Stripe checkout test creates a hosted session through /api/public/payments/{id}/start/stripe.",
+        }
+
+    raise HTTPException(
+        status_code=501,
+        detail=f"{provider_id}_provider_checkout_not_implemented_locally",
+    )
 
 @app.post("/api/merchants")
 async def create_merchant(

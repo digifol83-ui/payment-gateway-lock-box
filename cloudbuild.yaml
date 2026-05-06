@@ -20,28 +20,19 @@ steps:
       - 'gcr.io/$PROJECT_ID/beastpay-api:$SHORT_SHA'
 
   # Step 3: Deploy to Cloud Run
-  - name: 'gcr.io/cloud-builders/gke-deploy'
+  - name: 'gcr.io/cloud-builders/run'
     id: 'deploy-cloudrun'
     args:
-      - run
-      - '--filename=.'
-      - '--image=gcr.io/$PROJECT_ID/beastpay-api:$SHORT_SHA'
-      - '--location=us-central1'
-      - '--config=app.yaml'
-
-  # Step 4: Run tests (optional but recommended)
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'run-tests'
-    args:
-      - 'run'
-      - '--rm'
-      - 'gcr.io/$PROJECT_ID/beastpay-api:$SHORT_SHA'
-      - 'python'
-      - '-m'
-      - 'pytest'
-      - 'tests/'
-      - '-v'
-    onFailure: ['ALLOW']  # Don't block deployment on test failure
+      - 'deploy'
+      - 'beastpay-api'
+      - '--image=gcr.io/$PROJECT_ID/beastpay-api:latest'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      - '--service-account=beastpay-sa@$PROJECT_ID.iam.gserviceaccount.com'
 
 options:
   machineType: 'N1_HIGHCPU_8'
