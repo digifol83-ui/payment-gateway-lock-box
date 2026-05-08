@@ -274,9 +274,9 @@
             if (!amount || amount < 1) return;
 
             const providers = [
+                { id: 'stripe', name: '💳 Stripe', fee: 2.9, settlement: 'Instant', status: '🟢 LIVE', types: 'Card Payments' },
+                { id: 'transak', name: '🚀 Transak', fee: 1.0, settlement: '5-10 min', status: '🟢 LIVE', types: 'Fiat→Crypto (USD/AED)' },
                 { id: 'bleap', name: 'Bleap', fee: 0, settlement: '3 min', status: '🟡 Sandbox' },
-                { id: 'kast', name: 'KAST Pay', fee: 1.5, settlement: '5 min', status: '🟡 Sandbox' },
-                { id: 'guardarian', name: 'Guardarian', fee: 1.0, settlement: '20 min', status: '🟡 Sandbox' },
                 { id: 'metamask', name: 'MetaMask', fee: 2.5, settlement: '5-10 min', status: '🟢 Live' },
             ];
 
@@ -284,6 +284,7 @@
                 <div class="provider-card" onclick="selectProvider('${p.id}', this)">
                     <div class="provider-name">${p.name}</div>
                     <div class="provider-details">
+                        ${p.types ? `<div><strong>${p.types}</strong></div>` : ''}
                         <div>Fee: ${p.fee}%</div>
                         <div>Settlement: ${p.settlement}</div>
                         <div>${p.status}</div>
@@ -318,7 +319,20 @@
                 alert('Please select a provider and enter email');
                 return;
             }
-            alert(`[DEMO] Checkout with ${selectedProvider} for $${amountInput.value}`);
+
+            const amount = amountInput.value;
+            const currency = fiatSelect.value;
+            const crypto = cryptoSelect.value;
+            const email = emailInput.value;
+
+            // Route to appropriate provider checkout
+            if (selectedProvider === 'stripe') {
+                window.location.href = `/checkout/stripe?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
+            } else if (selectedProvider === 'transak') {
+                window.location.href = `/buy?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
+            } else {
+                window.location.href = `/checkout/${selectedProvider}?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
+            }
         }
 
         emailInput.addEventListener('input', () => {

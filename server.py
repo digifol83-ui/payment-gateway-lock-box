@@ -43,12 +43,9 @@ async def lifespan(app: FastAPI):
     logger.info("Starting BeastPay server...")
     validate_runtime_settings()
     await init_db()
-    await db_instance.connect()
-    logger.info("Database initialized and connected")
+    logger.info("Database initialized")
     yield
-    # Shutdown
     logger.info("Shutting down...")
-    await db_instance.close()
 
 app = FastAPI(
     title="BeastPay API",
@@ -99,10 +96,31 @@ async def admin_dashboard():
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=content)
 
-@app.get("/")
+
+@app.get("/documents/{doc_id}")
+async def get_document(doc_id: str, db: AsyncDB = Depends(get_db)):
+    """Serve a company document by ID."""
+    doc = await db.fetchone(
+        "SELECT id, document_name, file_path, mime_type FROM company_documents WHERE id = ?",
+        (doc_id,)
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="document_not_found")
+
+    file_path = doc["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="file_not_found")
+
+    mime_type = doc["mime_type"] or "application/octet-stream"
+    return FileResponse(file_path, media_type=mime_type, filename=doc["document_name"])
+
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    """Root redirect to Swagger docs."""
-    return {"message": "BeastPay API", "docs": "/docs", "admin": "/admin"}
+    landing = os.path.join(os.path.dirname(__file__), "web", "landing.html")
+    if not os.path.exists(landing):
+        return JSONResponse({"message": "BeastPay API", "docs": "/docs", "admin": "/admin"})
+    with open(landing, encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 
 def _web_path(filename: str) -> str:
@@ -138,6 +156,24 @@ async def checkout_page_with_payment(payment_id: str):
         "unified_checkout.html",
         {"__BASE_URL__": base_url, "__PAYMENT_ID__": payment_id},
     )
+
+
+@app.get("/payment-options", response_class=HTMLResponse)
+async def payment_options_page():
+    """Main payment options page with Stripe and Transak prominently featured."""
+    return _render_web_template("payment-options.html", {})
+
+
+@app.get("/checkout/stripe", response_class=HTMLResponse)
+async def stripe_checkout():
+    """Stripe-specific checkout page."""
+    return _render_web_template("unified_checkout.html", {"__PROVIDER__": "stripe"})
+
+
+@app.get("/buy", response_class=HTMLResponse)
+async def transak_checkout():
+    """Transak fiat-to-crypto checkout page."""
+    return _render_web_template("unified_checkout.html", {"__PROVIDER__": "transak"})
 
 
 @app.get("/pay/success/{payment_id}")
