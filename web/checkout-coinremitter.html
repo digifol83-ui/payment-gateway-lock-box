@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoinRemitter Direct Crypto - BeastPay Checkout</title>
+    <script src="/static/wallet-connector.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container { max-width: 500px; width: 100%; }
+        .checkout-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #F7931A 0%, #FFA500 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .header p { font-size: 13px; opacity: 0.9; }
+        .content { padding: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus { outline: none; border-color: #F7931A; }
+        .wallet-display {
+            background: #fffbf0;
+            border: 2px solid #FFE0B2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        .wallet-label { color: #666; font-weight: 500; margin-bottom: 8px; }
+        .wallet-address {
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #F7931A;
+            font-weight: 600;
+            word-break: break-all;
+        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .summary-box {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .summary-row:last-child {
+            margin-bottom: 0;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+        .checkout-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #F7931A 0%, #FFA500 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .checkout-button:hover:not(:disabled) { transform: translateY(-2px); }
+        .checkout-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .info-box {
+            background: #fffbf0;
+            border: 1px solid #ffeccc;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #795c32;
+        }
+        .info-box strong { display: block; margin-bottom: 5px; }
+        .back-button {
+            color: #F7931A;
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .back-button:hover { text-decoration: underline; }
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+            .header h1 { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">← Back to Providers</a>
+
+        <div class="checkout-card">
+            <div class="header">
+                <h1>
+                    <div class="header-icon">₿</div>
+                    CoinRemitter
+                </h1>
+                <p>Fast crypto payments directly to your wallet</p>
+            </div>
+
+            <div class="content">
+                <div class="wallet-display">
+                    <div class="wallet-label">📍 Receiving Wallet</div>
+                    <div class="wallet-address" id="walletAddress">
+                        0x0582b74D10c853B52335542036e6CEA9B780849A
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Amount (Fiat)</label>
+                    <input type="number" id="amount" placeholder="100.00" min="1" value="100" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fiatCurrency">Currency</label>
+                        <select id="fiatCurrency">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cryptoCurrency">Receive As</label>
+                        <select id="cryptoCurrency">
+                            <option value="BTC">Bitcoin</option>
+                            <option value="ETH">Ethereum</option>
+                            <option value="USDT">USDT</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="you@example.com" />
+                </div>
+
+                <div class="summary-box">
+                    <div class="summary-row">
+                        <span>Amount:</span>
+                        <span id="fiatAmount">$100.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Network Fee:</span>
+                        <span id="feeAmount">≈ $2.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>You Pay:</span>
+                        <span id="totalAmount">$102.00</span>
+                    </div>
+                </div>
+
+                <button class="checkout-button" id="checkoutButton" disabled>
+                    ⚡ Pay with CoinRemitter
+                </button>
+
+                <div class="info-box">
+                    <strong>⚡ Fast Delivery</strong>
+                    CoinRemitter delivers your crypto in minutes. No KYC required for amounts under $500.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const amountInput = document.getElementById('amount');
+        const emailInput = document.getElementById('email');
+        const checkoutButton = document.getElementById('checkoutButton');
+        const wallet = WalletConnector.getWallet();
+
+        document.getElementById('walletAddress').textContent = wallet.address;
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('amount')) amountInput.value = params.get('amount');
+        if (params.get('email')) emailInput.value = params.get('email');
+
+        [amountInput, emailInput].forEach(el => {
+            el.addEventListener('change', updateSummary);
+            el.addEventListener('input', updateSummary);
+        });
+
+        emailInput.addEventListener('input', () => {
+            checkoutButton.disabled = !emailInput.value;
+        });
+
+        function updateSummary() {
+            const amount = parseFloat(amountInput.value) || 0;
+            const fee = amount * 0.02;
+            document.getElementById('fiatAmount').textContent = `$${amount.toFixed(2)}`;
+            document.getElementById('feeAmount').textContent = `≈ $${fee.toFixed(2)}`;
+            document.getElementById('totalAmount').textContent = `$${(amount + fee).toFixed(2)}`;
+        }
+
+        checkoutButton.addEventListener('click', async () => {
+            const payload = {
+                amount_fiat: parseFloat(amountInput.value),
+                fiat_currency: document.getElementById('fiatCurrency').value,
+                crypto_currency: document.getElementById('cryptoCurrency').value,
+                wallet_address: wallet.address,
+                customer_email: emailInput.value,
+            };
+
+            try {
+                checkoutButton.disabled = true;
+                checkoutButton.textContent = 'Processing...';
+                const response = await fetch('/api/payments/coinremitter/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await response.json();
+                if (data.checkout_url) {
+                    window.location.href = data.checkout_url;
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                    checkoutButton.disabled = false;
+                }
+            } catch (error) {
+                alert('Checkout failed: ' + error.message);
+                checkoutButton.disabled = false;
+            }
+        });
+
+        updateSummary();
+    </script>
+</body>
+</html>

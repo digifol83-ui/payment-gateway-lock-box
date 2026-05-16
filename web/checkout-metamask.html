@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMask Direct Wallet - BeastPay Checkout</title>
+    <script src="/static/wallet-connector.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .checkout-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .wallet-display {
+            background: #f8f9ff;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .wallet-label {
+            color: #666;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .wallet-address {
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #667eea;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .summary-box {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .summary-row:last-child {
+            margin-bottom: 0;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .checkout-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .checkout-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .checkout-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: #fffbf0;
+            border: 1px solid #ffeccc;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 15px;
+            font-size: 12px;
+            color: #795c32;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .back-button {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .back-button:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .container {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">← Back to Providers</a>
+
+        <div class="checkout-card">
+            <div class="header">
+                <h1>
+                    <div class="header-icon">🦊</div>
+                    MetaMask Wallet
+                </h1>
+                <p>Direct crypto payment to your wallet</p>
+            </div>
+
+            <div class="content">
+                <!-- Wallet Display -->
+                <div class="wallet-display">
+                    <div class="wallet-label">📍 Receiving Wallet Address</div>
+                    <div class="wallet-address" id="walletAddress">
+                        0x0582b74D10c853B52335542036e6CEA9B780849A
+                    </div>
+                </div>
+
+                <!-- Payment Details -->
+                <div class="form-group">
+                    <label for="amount">Amount (Fiat)</label>
+                    <input type="number" id="amount" placeholder="100.00" min="1" value="100" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fiatCurrency">Currency</label>
+                        <select id="fiatCurrency">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="AED">AED</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cryptoCurrency">Receive As</label>
+                        <select id="cryptoCurrency">
+                            <option value="USDT">USDT</option>
+                            <option value="USDC">USDC</option>
+                            <option value="ETH">ETH</option>
+                            <option value="BTC">BTC</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" placeholder="you@example.com" />
+                </div>
+
+                <!-- Payment Summary -->
+                <div class="summary-box">
+                    <div class="summary-row">
+                        <span>Fiat Amount:</span>
+                        <span id="fiatAmount">$100.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Fee (MetaMask):</span>
+                        <span id="feeAmount">$2.50</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>You Pay:</span>
+                        <span id="totalAmount">$102.50</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Approx Receive:</span>
+                        <span id="receiveAmount">≈ 0.05 ETH</span>
+                    </div>
+                </div>
+
+                <!-- Checkout Button -->
+                <button class="checkout-button" id="checkoutButton" disabled>
+                    💰 Proceed to MetaMask
+                </button>
+
+                <!-- Info -->
+                <div class="info-box">
+                    <strong>🔒 Direct to Wallet</strong>
+                    You'll complete this payment directly in MetaMask. No intermediary needed.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const amountInput = document.getElementById('amount');
+        const fiatSelect = document.getElementById('fiatCurrency');
+        const cryptoSelect = document.getElementById('cryptoCurrency');
+        const emailInput = document.getElementById('email');
+        const checkoutButton = document.getElementById('checkoutButton');
+        const walletAddress = document.getElementById('walletAddress');
+
+        // Load wallet from connector
+        const wallet = WalletConnector.getWallet();
+        walletAddress.textContent = wallet.address;
+
+        // Pre-fill from URL params
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('amount')) amountInput.value = params.get('amount');
+        if (params.get('currency')) fiatSelect.value = params.get('currency');
+        if (params.get('crypto')) cryptoSelect.value = params.get('crypto');
+        if (params.get('email')) emailInput.value = params.get('email');
+
+        // Update summary on input change
+        [amountInput, fiatSelect, cryptoSelect, emailInput].forEach(el => {
+            el.addEventListener('change', updateSummary);
+            el.addEventListener('input', updateSummary);
+        });
+
+        emailInput.addEventListener('input', () => {
+            checkoutButton.disabled = !emailInput.value;
+        });
+
+        function updateSummary() {
+            const amount = parseFloat(amountInput.value) || 0;
+            const fee = amount * 0.025; // 2.5% MetaMask fee
+            const total = amount + fee;
+
+            document.getElementById('fiatAmount').textContent = `$${amount.toFixed(2)}`;
+            document.getElementById('feeAmount').textContent = `$${fee.toFixed(2)}`;
+            document.getElementById('totalAmount').textContent = `$${total.toFixed(2)}`;
+
+            // Placeholder for crypto conversion (in real scenario, fetch from provider)
+            const estimatedCrypto = amount / 2000; // Placeholder rate
+            document.getElementById('receiveAmount').textContent = `≈ ${estimatedCrypto.toFixed(6)} ${cryptoSelect.value}`;
+        }
+
+        checkoutButton.addEventListener('click', async () => {
+            if (!emailInput.value) {
+                alert('Please enter your email address');
+                return;
+            }
+
+            const payload = {
+                amount_fiat: parseFloat(amountInput.value),
+                fiat_currency: fiatSelect.value,
+                crypto_currency: cryptoSelect.value,
+                wallet_address: wallet.address,
+                customer_email: emailInput.value,
+            };
+
+            try {
+                checkoutButton.disabled = true;
+                checkoutButton.textContent = 'Processing...';
+
+                const response = await fetch('/api/payments/metamask/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+
+                if (data.checkout_url) {
+                    window.location.href = data.checkout_url;
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                    checkoutButton.disabled = false;
+                    checkoutButton.textContent = '💰 Proceed to MetaMask';
+                }
+            } catch (error) {
+                console.error('Checkout error:', error);
+                alert('Checkout failed: ' + error.message);
+                checkoutButton.disabled = false;
+                checkoutButton.textContent = '💰 Proceed to MetaMask';
+            }
+        });
+
+        updateSummary();
+    </script>
+</body>
+</html>

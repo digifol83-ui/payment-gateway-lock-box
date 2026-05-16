@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
@@ -19,10 +19,12 @@ from routes_pending_tasks import router as pending_tasks_router
 from routes_openclaw import router as openclaw_router
 from routes_codewords import router as codewords_router
 from routes_lockbox import router as lockbox_router
+from routes_guardarian import router as guardarian_router
 from config import settings
 from config import validate_runtime_settings
 from telegram_notify import notify_new_payment, notify_payment_update, notify_test
 from providers.stripe import StripeProvider
+from providers.coinremitter import CoinRemitterProvider
 
 # Configure logging
 logging.basicConfig(
@@ -64,6 +66,7 @@ app.include_router(pending_tasks_router)
 app.include_router(openclaw_router)
 app.include_router(codewords_router)
 app.include_router(lockbox_router)
+app.include_router(guardarian_router)
 
 async def get_db():
     return db_instance
@@ -123,6 +126,24 @@ async def root():
         return HTMLResponse(content=f.read())
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy():
+    page = os.path.join(os.path.dirname(__file__), "web", "privacy.html")
+    if not os.path.exists(page):
+        raise HTTPException(status_code=404, detail="privacy_policy_not_found")
+    with open(page, encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def terms_of_service():
+    page = os.path.join(os.path.dirname(__file__), "web", "terms.html")
+    if not os.path.exists(page):
+        raise HTTPException(status_code=404, detail="terms_of_service_not_found")
+    with open(page, encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+
 def _web_path(filename: str) -> str:
     return os.path.join(os.path.dirname(__file__), "web", filename)
 
@@ -138,12 +159,24 @@ def _render_web_template(filename: str, replacements: dict) -> HTMLResponse:
     return HTMLResponse(content=content)
 
 
-@app.get("/checkout")
-async def checkout_page():
-    """Public unified checkout page (provider-hosted payment entry)."""
+def _render_unified_checkout(provider: str = "stripe", payment_id: str = "") -> HTMLResponse:
     base_url = os.getenv("BASE_URL", "http://localhost:8000")
     return _render_web_template(
         "unified_checkout.html",
+        {
+            "__BASE_URL__": base_url,
+            "__PAYMENT_ID__": payment_id,
+            "__PROVIDER__": provider,
+        },
+    )
+
+
+@app.get("/checkout")
+async def checkout_page():
+    """Public unified checkout page with Stripe & Transak."""
+    base_url = os.getenv("BASE_URL", "http://localhost:8000")
+    return _render_web_template(
+        "checkout.html",
         {"__BASE_URL__": base_url, "__PAYMENT_ID__": ""},
     )
 
@@ -151,11 +184,7 @@ async def checkout_page():
 @app.get("/checkout/{payment_id}")
 async def checkout_page_with_payment(payment_id: str):
     """Unified checkout page pinned to an existing payment_id."""
-    base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    return _render_web_template(
-        "unified_checkout.html",
-        {"__BASE_URL__": base_url, "__PAYMENT_ID__": payment_id},
-    )
+    return _render_unified_checkout(provider="stripe", payment_id=payment_id)
 
 
 @app.get("/payment-options", response_class=HTMLResponse)
@@ -167,13 +196,77 @@ async def payment_options_page():
 @app.get("/checkout/stripe", response_class=HTMLResponse)
 async def stripe_checkout():
     """Stripe-specific checkout page."""
-    return _render_web_template("unified_checkout.html", {"__PROVIDER__": "stripe"})
+    return _render_web_template("checkout.html", {"__PROVIDER__": "stripe", "__AUTO_SELECT__": "true"})
 
 
 @app.get("/buy", response_class=HTMLResponse)
 async def transak_checkout():
-    """Transak fiat-to-crypto checkout page."""
-    return _render_web_template("unified_checkout.html", {"__PROVIDER__": "transak"})
+    """Transak fiat-to-crypto checkout page with wallet input."""
+    return _render_web_template("transak-checkout.html", {})
+
+# Provider-specific checkout pages
+@app.get("/checkout-metamask.html", response_class=HTMLResponse)
+async def metamask_checkout():
+    """MetaMask direct wallet checkout page."""
+    return FileResponse("web/checkout-metamask.html")
+
+@app.get("/checkout-coinremitter.html", response_class=HTMLResponse)
+async def coinremitter_checkout():
+    """CoinRemitter crypto payment checkout page."""
+    return FileResponse("web/checkout-coinremitter.html")
+
+@app.get("/checkout-plisio.html", response_class=HTMLResponse)
+async def plisio_checkout():
+    """Plisio crypto payment checkout page."""
+    return FileResponse("web/checkout-plisio.html")
+
+@app.get("/checkout-nowpayments.html", response_class=HTMLResponse)
+async def nowpayments_checkout():
+    """NOWPayments crypto payment checkout page."""
+    return FileResponse("web/checkout-nowpayments.html")
+
+
+@app.get("/api/transak/checkout")
+async def transak_checkout_redirect(
+    amount: str = None,
+    currency: str = "USD",
+    crypto: str = "USDT",
+    email: str = None,
+    wallet: str = None,
+):
+    """Route to Transak widget with wallet address."""
+    if not wallet or wallet.strip() == "":
+        raise HTTPException(status_code=400, detail="wallet_address is required")
+
+    # Create a temporary payment object for the Transak provider
+    from providers.transak import TransakProvider
+
+    payment = {
+        "id": str(uuid.uuid4()),
+        "wallet_address": wallet.strip(),
+        "fiat_amount": float(amount or 100),
+        "fiat_currency": currency,
+        "crypto_currency": crypto,
+        "customer_email": email,
+    }
+
+    try:
+        provider = TransakProvider()
+        transak_url = await provider.create_widget_url(payment)
+        return RedirectResponse(url=transak_url, status_code=302)
+    except Exception as e:
+        logger.error(f"Transak redirect error: {e}")
+        error_text = str(e)
+        if "Invalid or missing access-token" in error_text or "errorCode': 1002" in error_text or '"errorCode": 1002' in error_text:
+            detail = (
+                "transak_partner_access_token_rejected: Transak generated a partner access token, "
+                "but Create Widget URL rejected it. Ask Transak to enable API-based Create Widget URL "
+                "for this Production API key and whitelist the backend/Cloud Run egress IP. "
+                f"Original: {error_text}"
+            )
+        else:
+            detail = f"Transak error: {error_text}"
+        raise HTTPException(status_code=502, detail=detail)
 
 
 @app.get("/pay/success/{payment_id}")
@@ -289,7 +382,7 @@ async def public_start_provider_checkout(payment_id: str, provider_id: str, payl
 
     if provider_id == "transak":
         from providers.transak import TransakProvider
-        redirect_url = TransakProvider().build_widget_url(fiat_to_crypto_payment())
+        redirect_url = await TransakProvider().create_widget_url(fiat_to_crypto_payment())
         return {"payment_id": pid, "provider_id": provider_id, "redirect_url": redirect_url}
 
     if provider_id == "moonpay":
@@ -357,10 +450,14 @@ async def api_provider_test(payload: dict):
 
     if provider_id == "transak":
         from providers.transak import TransakProvider
+        try:
+            redirect_url = await TransakProvider().create_widget_url(payment)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Transak error: {str(e)}")
         return {
             "provider_id": provider_id,
             "production": _is_production(provider_id),
-            "redirect_url": TransakProvider().build_widget_url(payment),
+            "redirect_url": redirect_url,
         }
 
     if provider_id == "moonpay":
@@ -475,6 +572,79 @@ async def create_payment(
     else:
         logger.error(f"✗ Payment creation failed: {response.error}")
         return JSONResponse(status_code=400, content=response.to_dict())
+
+# Provider-specific payment creation routes (for unified checkout)
+@app.post("/api/payments/metamask/create")
+async def create_metamask_payment(payload: dict, db: AsyncDB = Depends(get_db)):
+    """Create MetaMask direct payment."""
+    payload['provider'] = 'metamask'
+    payment_agent = PaymentRouter(db)
+    response = await payment_agent.execute(
+        action="create",
+        payload=payload,
+        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
+        flags={"verbose": True}
+    )
+    if response.status.value == "success":
+        return JSONResponse(status_code=201, content={
+            "checkout_url": f"/checkout/metamask?payment_id={response.result['payment_id']}",
+            "payment_id": response.result['payment_id']
+        })
+    return JSONResponse(status_code=400, content={"error": response.error})
+
+@app.post("/api/payments/coinremitter/create")
+async def create_coinremitter_payment(payload: dict, db: AsyncDB = Depends(get_db)):
+    """Create CoinRemitter payment."""
+    payload['provider'] = 'coinremitter'
+    payment_agent = PaymentRouter(db)
+    response = await payment_agent.execute(
+        action="create",
+        payload=payload,
+        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
+        flags={"verbose": True}
+    )
+    if response.status.value == "success":
+        return JSONResponse(status_code=201, content={
+            "checkout_url": f"/checkout/coinremitter?payment_id={response.result['payment_id']}",
+            "payment_id": response.result['payment_id']
+        })
+    return JSONResponse(status_code=400, content={"error": response.error})
+
+@app.post("/api/payments/plisio/create")
+async def create_plisio_payment(payload: dict, db: AsyncDB = Depends(get_db)):
+    """Create Plisio payment."""
+    payload['provider'] = 'plisio'
+    payment_agent = PaymentRouter(db)
+    response = await payment_agent.execute(
+        action="create",
+        payload=payload,
+        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
+        flags={"verbose": True}
+    )
+    if response.status.value == "success":
+        return JSONResponse(status_code=201, content={
+            "checkout_url": f"/checkout/plisio?payment_id={response.result['payment_id']}",
+            "payment_id": response.result['payment_id']
+        })
+    return JSONResponse(status_code=400, content={"error": response.error})
+
+@app.post("/api/payments/nowpayments/create")
+async def create_nowpayments_payment(payload: dict, db: AsyncDB = Depends(get_db)):
+    """Create NOWPayments payment."""
+    payload['provider'] = 'nowpayments'
+    payment_agent = PaymentRouter(db)
+    response = await payment_agent.execute(
+        action="create",
+        payload=payload,
+        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
+        flags={"verbose": True}
+    )
+    if response.status.value == "success":
+        return JSONResponse(status_code=201, content={
+            "checkout_url": f"/checkout/nowpayments?payment_id={response.result['payment_id']}",
+            "payment_id": response.result['payment_id']
+        })
+    return JSONResponse(status_code=400, content={"error": response.error})
 
 @app.post("/api/verify")
 async def verify_kyc(
@@ -852,6 +1022,7 @@ class CheckoutRequest(BaseModel):
     checkout_method: str = "stripe"  # "stripe" (card), "lockbox" (card vault), "crypto" (direct), "ziina" (aed native)
     card_id: str = None  # For lockbox method
     metadata: dict = None
+    otp_token: str = None  # Required for Guardarian; mint via /v1/guardarian/otp/admin/{request,verify}
 
 
 @app.post("/api/checkout/initiate-comprehensive")
@@ -1003,20 +1174,31 @@ async def comprehensive_checkout(
         from providers.transak import TransakProvider
         transak = TransakProvider()
         try:
-            order_url = transak.build_widget_url({
+            metadata = req.metadata or {}
+            order_url = await transak.create_widget_url({
                 "id": payment_id,
                 "amount": req.amount_fiat,
                 "fiat_currency": req.fiat_currency,
                 "crypto_currency": req.crypto_currency,
                 "customer_email": req.customer_email,
-                "description": f"BeastPay {req.crypto_currency}"
+                "customer_name": req.customer_name,
+                "wallet_address": metadata.get("wallet_address") or metadata.get("wallet"),
+                "description": f"BeastPay {req.crypto_currency}",
             })
             checkout_url = order_url
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Transak error: {str(e)}")
 
     elif req.checkout_method == "guardarian":
-        # Fiat→Crypto via Guardarian (170+ countries, 1000+ cryptos)
+        # OTP gate 1/3 — admin must have a valid otp_token bound to this ADMIN_API_KEY
+        from verification import otp_guardarian as _otp
+        admin_subj = (settings.ADMIN_API_KEY or "anonymous_admin")[:64]
+        if not await _otp.consume_bearer(db, "guardarian_create", req.otp_token or "", admin_subj):
+            raise HTTPException(
+                status_code=401,
+                detail="Guardarian requires a fresh otp_token. POST /v1/guardarian/otp/admin/request, then /verify.",
+            )
+
         from providers.guardarian import GuardarianProvider
         guardarian = GuardarianProvider()
         try:
@@ -1027,12 +1209,24 @@ async def comprehensive_checkout(
                 "client_id": payment_id,
                 "wallet_address": req.metadata.get("wallet") if req.metadata else None,
             })
-            checkout_url = order.get("payment_url")
+            guardarian_url = order.get("payment_url")
+            if not guardarian_url:
+                raise RuntimeError("Guardarian did not return a payment URL")
 
+            # Cache the real Guardarian URL; the customer never sees it until they pass OTP gate.
+            import time as _t
+            await db.execute(
+                "INSERT OR REPLACE INTO guardarian_redirects (payment_id, target_url, created_at) "
+                "VALUES (?, ?, ?)",
+                (payment_id, guardarian_url, int(_t.time())),
+            )
             await db.execute(
                 "UPDATE payments SET provider_order_id = ? WHERE id = ?",
                 (order.get("id"), payment_id)
             )
+
+            # The caller gets the OTP gate URL, not the raw Guardarian URL.
+            checkout_url = f"{settings.BASE_URL.rstrip('/')}/v1/guardarian/gate/{payment_id}"
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Guardarian error: {str(e)}")
 
@@ -1386,33 +1580,38 @@ async def transak_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 
 @app.post("/webhooks/guardarian")
 async def guardarian_webhook(request: Request, db: AsyncDB = Depends(get_db)):
-    """Guardarian webhook receiver for payment status updates."""
-    payload = await request.json()
-    txn_data = payload.get("transaction", {})
-    payment_id = txn_data.get("clientId") or txn_data.get("id")
+    """Guardarian webhook receiver — HMAC-SHA512 signature required.
 
+    Guardarian signs the raw body with GUARDARIAN_WEBHOOK_SECRET and sends
+    the hex digest in the X-Api-Signature header. Reject anything else.
+    """
+    from providers.guardarian import GuardarianProvider
+
+    raw_body = await request.body()
+    signature = request.headers.get("x-api-signature") or request.headers.get("X-Api-Signature")
+    if not GuardarianProvider.verify_webhook_signature(raw_body, signature):
+        logger.warning("Guardarian webhook: signature verification FAILED (ip=%s)",
+                       request.client.host if request.client else "?")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    provider = GuardarianProvider()
+    normalized = await provider.handle_webhook(payload)
+    payment_id = normalized["client_id"]
     if not payment_id:
-        return {"status": "ignored"}
-
-    status = txn_data.get("status", "").lower()
-    status_map = {
-        "completed": "completed",
-        "finished": "completed",
-        "failed": "failed",
-        "cancelled": "failed",
-        "waiting": "pending",
-    }
-
-    new_status = status_map.get(status)
-    if not new_status:
         return {"status": "ignored"}
 
     await db.execute(
         "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
-        (new_status, txn_data.get("id"), datetime.utcnow().isoformat(), payment_id)
+        (normalized["status"], normalized["transaction_id"], datetime.utcnow().isoformat(), payment_id)
     )
 
-    logger.info(f"Guardarian webhook: {payment_id} → {new_status}")
+    logger.info("Guardarian webhook: %s → %s (raw=%s)",
+                payment_id, normalized["status"], normalized["raw_status"])
     return {"status": "ok"}
 
 
@@ -1451,28 +1650,40 @@ async def ziina_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 @app.post("/webhooks/moonpay")
 async def moonpay_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     """MoonPay webhook receiver for fiat payment updates."""
-    payload = await request.json()
-    txn_data = payload.get("transaction", {})
-    payment_id = txn_data.get("customerId") or txn_data.get("externalCustomerId")
+    raw_body = await request.body()
+    sig_header = (
+        request.headers.get("x-signature")
+        or request.headers.get("X-Signature")
+        or request.headers.get("moonpay-signature-v2")
+        or request.headers.get("Moonpay-Signature-V2")
+        or ""
+    )
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+
+    from providers.moonpay import MoonPayProvider
+    provider = MoonPayProvider()
+    if not provider.verify_webhook(raw_body, sig_header, auth_header):
+        logger.warning("MoonPay webhook signature invalid — rejecting")
+        raise HTTPException(status_code=401, detail="invalid_signature")
+
+    import json as _json
+    payload = _json.loads(raw_body) if raw_body else {}
+    event = provider.parse_webhook(payload)
+
+    if not event:
+        return {"status": "ignored"}
+
+    payment_id = event.get("payment_id")
+    new_status = event.get("status")
+    provider_tx_id = event.get("provider_tx_id")
 
     if not payment_id:
-        return {"status": "ignored"}
-
-    status = txn_data.get("status", "").lower()
-    status_map = {
-        "completed": "completed",
-        "pending": "pending",
-        "failed": "failed",
-        "cancelled": "failed",
-    }
-
-    new_status = status_map.get(status)
-    if not new_status:
-        return {"status": "ignored"}
+        logger.info("MoonPay webhook accepted without local payment id")
+        return {"status": "accepted"}
 
     await db.execute(
         "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
-        (new_status, txn_data.get("id"), datetime.utcnow().isoformat(), payment_id)
+        (new_status, provider_tx_id, datetime.utcnow().isoformat(), payment_id)
     )
 
     logger.info(f"MoonPay webhook: {payment_id} → {new_status}")
@@ -1506,6 +1717,32 @@ async def nowpayments_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     )
 
     logger.info(f"NOWPayments webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
+@app.post("/webhooks/coinremitter")
+async def coinremitter_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """CoinRemitter webhook receiver — verifies signature, updates payment."""
+    form = await request.form()
+    form_data = {k: form[k] for k in form.keys()}
+
+    provider = CoinRemitterProvider()
+    if not provider.verify_webhook(form_data):
+        logger.warning("CoinRemitter webhook: signature verification failed")
+        raise HTTPException(status_code=400, detail="invalid signature")
+
+    parsed = provider.parse_webhook(form_data) or {}
+    payment_id = parsed.get("payment_id")
+    if not payment_id:
+        return {"status": "ignored"}
+
+    new_status = parsed["status"]
+    await db.execute(
+        "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
+        (new_status, parsed.get("provider_tx_id"), datetime.utcnow().isoformat(), payment_id),
+    )
+
+    logger.info(f"CoinRemitter webhook: {payment_id} → {new_status}")
     return {"status": "ok"}
 
 
