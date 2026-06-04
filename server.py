@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import json
 from datetime import datetime
 import sys
 import os
@@ -20,6 +21,9 @@ from routes_openclaw import router as openclaw_router
 from routes_codewords import router as codewords_router
 from routes_lockbox import router as lockbox_router
 from routes_guardarian import router as guardarian_router
+from routes_wallet import router as wallet_router
+from routes_cards import router as cards_router
+from routes_transak_checkout import router as transak_router
 from config import settings
 from config import validate_runtime_settings
 from telegram_notify import notify_new_payment, notify_payment_update, notify_test
@@ -67,6 +71,9 @@ app.include_router(openclaw_router)
 app.include_router(codewords_router)
 app.include_router(lockbox_router)
 app.include_router(guardarian_router)
+app.include_router(wallet_router)
+app.include_router(cards_router)
+app.include_router(transak_router)
 
 async def get_db():
     return db_instance
@@ -181,6 +188,12 @@ async def checkout_page():
     )
 
 
+@app.get("/checkout/ferrin", response_class=HTMLResponse)
+async def checkout_ferrin():
+    """Mohammed Ferrin pre-filled card entry checkout page."""
+    return FileResponse("web/checkout-ferrin.html")
+
+
 @app.get("/checkout/{payment_id}")
 async def checkout_page_with_payment(payment_id: str):
     """Unified checkout page pinned to an existing payment_id."""
@@ -205,10 +218,20 @@ async def transak_checkout():
     return _render_web_template("transak-checkout.html", {})
 
 # Provider-specific checkout pages
+@app.get("/pay/wallet", response_class=HTMLResponse)
+async def pay_wallet():
+    """Unified MetaMask + Trust Wallet checkout — live prices, multi-chain, on-chain verify."""
+    return FileResponse("web/pay-wallet.html")
+
 @app.get("/checkout-metamask.html", response_class=HTMLResponse)
 async def metamask_checkout():
     """MetaMask direct wallet checkout page."""
     return FileResponse("web/checkout-metamask.html")
+
+@app.get("/checkout-trustwallet.html", response_class=HTMLResponse)
+async def trustwallet_checkout():
+    """Trust Wallet direct wallet checkout page."""
+    return FileResponse("web/checkout-trustwallet.html")
 
 @app.get("/checkout-coinremitter.html", response_class=HTMLResponse)
 async def coinremitter_checkout():
@@ -256,7 +279,7 @@ async def transak_checkout_redirect(
         return RedirectResponse(url=transak_url, status_code=302)
     except Exception as e:
         logger.error(f"Transak redirect error: {e}")
-        error_text = str(e)
+        error_text = str(e).strip() or e.__class__.__name__
         if "Invalid or missing access-token" in error_text or "errorCode': 1002" in error_text or '"errorCode": 1002' in error_text:
             detail = (
                 "transak_partner_access_token_rejected: Transak generated a partner access token, "
@@ -422,7 +445,16 @@ async def api_provider_status():
     return {
         "providers": provider_status_all(),
         "live_fiat_to_crypto": list_production_fiat_to_crypto(),
+        "status_note": "LIVE means production credentials are configured. Use /api/providers/real-payment-status to verify real customer payment readiness.",
     }
+
+
+@app.get("/api/providers/real-payment-status")
+async def api_real_payment_status():
+    """Probe provider APIs/session creation to verify real payment readiness."""
+    from real_payment_status import real_payment_status
+
+    return await real_payment_status()
 
 
 @app.post("/api/providers/test")
@@ -574,77 +606,73 @@ async def create_payment(
         return JSONResponse(status_code=400, content=response.to_dict())
 
 # Provider-specific payment creation routes (for unified checkout)
+async def _create_provider_payment(db: AsyncDB, payload: dict, provider_id: str) -> JSONResponse:
+    fiat_amount = float(payload.get("amount") or payload.get("fiat_amount") or payload.get("amount_fiat") or 0.0)
+    if fiat_amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    fiat_currency = (payload.get("fiat_currency") or "USD").strip().upper()
+    crypto_currency = (payload.get("crypto_currency") or payload.get("crypto_ticker") or "USDT").strip().upper()
+    customer_email = (payload.get("customer_email") or "").strip() or None
+    wallet_address = (payload.get("wallet_address") or "").strip() or "pending_address"
+
+    payment_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+    try:
+        await db.execute(
+            """
+            INSERT INTO payments
+            (id, merchant_id, amount, fiat_currency, crypto_currency, provider, wallet_address, customer_email, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (payment_id, None, fiat_amount, fiat_currency, crypto_currency, provider_id, wallet_address, customer_email, "pending", now, now),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"database_error: {e}")
+
+    try:
+        await notify_new_payment({
+            "id": payment_id,
+            "amount": fiat_amount,
+            "fiat_currency": fiat_currency,
+            "crypto_currency": crypto_currency,
+            "provider": provider_id,
+            "customer_email": customer_email,
+            "status": "pending",
+        })
+    except Exception as e:
+        logger.warning(f"telegram_notify_failed: {e}")
+
+    return JSONResponse(status_code=201, content={
+        "payment_id": payment_id,
+        "provider": provider_id,
+        "amount": fiat_amount,
+        "fiat_currency": fiat_currency,
+        "crypto_currency": crypto_currency,
+        "wallet_address": wallet_address,
+        "customer_email": customer_email,
+        "checkout_url": f"/pay/success/{payment_id}",
+        "status": "pending",
+    })
+
 @app.post("/api/payments/metamask/create")
 async def create_metamask_payment(payload: dict, db: AsyncDB = Depends(get_db)):
-    """Create MetaMask direct payment."""
-    payload['provider'] = 'metamask'
-    payment_agent = PaymentRouter(db)
-    response = await payment_agent.execute(
-        action="create",
-        payload=payload,
-        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
-        flags={"verbose": True}
-    )
-    if response.status.value == "success":
-        return JSONResponse(status_code=201, content={
-            "checkout_url": f"/checkout/metamask?payment_id={response.result['payment_id']}",
-            "payment_id": response.result['payment_id']
-        })
-    return JSONResponse(status_code=400, content={"error": response.error})
+    return await _create_provider_payment(db, payload, "metamask")
+
+@app.post("/api/payments/trustwallet/create")
+async def create_trustwallet_payment(payload: dict, db: AsyncDB = Depends(get_db)):
+    return await _create_provider_payment(db, payload, "trustwallet")
 
 @app.post("/api/payments/coinremitter/create")
 async def create_coinremitter_payment(payload: dict, db: AsyncDB = Depends(get_db)):
-    """Create CoinRemitter payment."""
-    payload['provider'] = 'coinremitter'
-    payment_agent = PaymentRouter(db)
-    response = await payment_agent.execute(
-        action="create",
-        payload=payload,
-        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
-        flags={"verbose": True}
-    )
-    if response.status.value == "success":
-        return JSONResponse(status_code=201, content={
-            "checkout_url": f"/checkout/coinremitter?payment_id={response.result['payment_id']}",
-            "payment_id": response.result['payment_id']
-        })
-    return JSONResponse(status_code=400, content={"error": response.error})
+    return await _create_provider_payment(db, payload, "coinremitter")
 
 @app.post("/api/payments/plisio/create")
 async def create_plisio_payment(payload: dict, db: AsyncDB = Depends(get_db)):
-    """Create Plisio payment."""
-    payload['provider'] = 'plisio'
-    payment_agent = PaymentRouter(db)
-    response = await payment_agent.execute(
-        action="create",
-        payload=payload,
-        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
-        flags={"verbose": True}
-    )
-    if response.status.value == "success":
-        return JSONResponse(status_code=201, content={
-            "checkout_url": f"/checkout/plisio?payment_id={response.result['payment_id']}",
-            "payment_id": response.result['payment_id']
-        })
-    return JSONResponse(status_code=400, content={"error": response.error})
+    return await _create_provider_payment(db, payload, "plisio")
 
 @app.post("/api/payments/nowpayments/create")
 async def create_nowpayments_payment(payload: dict, db: AsyncDB = Depends(get_db)):
-    """Create NOWPayments payment."""
-    payload['provider'] = 'nowpayments'
-    payment_agent = PaymentRouter(db)
-    response = await payment_agent.execute(
-        action="create",
-        payload=payload,
-        context={"actor": "web_checkout", "request_id": f"req_{datetime.utcnow().timestamp()}"},
-        flags={"verbose": True}
-    )
-    if response.status.value == "success":
-        return JSONResponse(status_code=201, content={
-            "checkout_url": f"/checkout/nowpayments?payment_id={response.result['payment_id']}",
-            "payment_id": response.result['payment_id']
-        })
-    return JSONResponse(status_code=400, content={"error": response.error})
+    return await _create_provider_payment(db, payload, "nowpayments")
 
 @app.post("/api/verify")
 async def verify_kyc(
@@ -882,6 +910,86 @@ async def test_telegram(
         return JSONResponse(status_code=200, content={"status": "ok", "message": "Telegram bot connected"})
     else:
         return JSONResponse(status_code=503, content={"status": "error", "message": "Telegram bot not responding"})
+
+
+@app.get("/api/telegram/status")
+async def telegram_status():
+    """Public, redacted Telegram bot and payment readiness status."""
+    from telegram_payments import telegram_gateway_status
+
+    return await telegram_gateway_status(probe_invoice=True)
+
+
+@app.post("/api/telegram/test")
+async def telegram_test():
+    """Send the configured Telegram chat a test notification, if chat delivery is enabled."""
+    success = await notify_test()
+    if success:
+        return {"status": "ok", "message": "Telegram notification delivered"}
+    raise HTTPException(status_code=503, detail="telegram_not_configured_or_unreachable")
+
+
+@app.get("/api/telegram/payment-gateways/status")
+async def telegram_payment_gateways_status():
+    """Telegram Payments plus non-Stripe/non-Transak gateway readiness."""
+    from telegram_payments import non_stripe_gateway_status
+
+    return await non_stripe_gateway_status()
+
+
+@app.get("/api/providers/non-stripe-status")
+async def non_stripe_provider_status():
+    """Alias for gateway readiness excluding Stripe and Transak."""
+    from telegram_payments import non_stripe_gateway_status
+
+    return await non_stripe_gateway_status()
+
+
+@app.post("/api/telegram/payments/create-invoice-link")
+async def telegram_create_invoice_link(
+    payload: dict,
+    api_key: str = Depends(verify_api_key),
+):
+    """Create a Telegram invoice link. Card data never touches this API."""
+    from telegram_payments import create_invoice_link, INVOICE_PAYLOAD_PREFIX
+
+    title = (payload.get("title") or "BeastPay").strip()
+    description = (payload.get("description") or "BeastPay payment").strip()
+    amount = float(payload.get("amount") or 1)
+    currency = (payload.get("currency") or "XTR").strip().upper()
+    payment_id = (payload.get("payment_id") or str(uuid.uuid4())).strip()
+    invoice_link = await create_invoice_link(
+        title=title,
+        description=description,
+        payload=f"{INVOICE_PAYLOAD_PREFIX}{payment_id}",
+        amount=amount,
+        currency=currency,
+    )
+    return {
+        "payment_id": payment_id,
+        "currency": currency,
+        "amount": amount,
+        "invoice_link": invoice_link,
+    }
+
+
+@app.post("/telegram/incoming")
+async def telegram_incoming(request: Request, db: AsyncDB = Depends(get_db)):
+    """Telegram webhook endpoint for payment updates."""
+    from telegram_payments import handle_telegram_payment_update, telegram_webhook_secret_valid
+
+    if not telegram_webhook_secret_valid(
+        settings.TELEGRAM_WEBHOOK_SECRET,
+        request.headers.get("X-Telegram-Bot-Api-Secret-Token"),
+    ):
+        raise HTTPException(status_code=401, detail="telegram_webhook_secret_invalid")
+
+    update = await request.json()
+    result = await handle_telegram_payment_update(update, db)
+    if result.get("handled"):
+        return result
+    return {"handled": False, "status": "ignored"}
+
 
 @app.get("/health")
 async def health_check(db: AsyncDB = Depends(get_db)):
@@ -1156,11 +1264,13 @@ async def comprehensive_checkout(
             # Create order via Ziina
             order_resp = await ziina.create_order({
                 "amount": req.amount_fiat,
-                "currency": "AED",
+                "currency": req.fiat_currency or "AED",
                 "reference": payment_id,
                 "customer_email": req.customer_email,
+                "description": f"Beast AI credits - {payment_id}",
             })
-            session_token = order_resp.get("session_id") or order_resp.get("url")
+            checkout_url = order_resp.get("url") or order_resp.get("session_id")
+            session_token = order_resp.get("session_id")
 
             await db.execute(
                 "UPDATE payments SET provider_order_id = ? WHERE id = ?",
@@ -1618,32 +1728,40 @@ async def guardarian_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 @app.post("/webhooks/ziina")
 async def ziina_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     """Ziina webhook receiver for AED payment updates."""
-    payload = await request.json()
-    order_data = payload.get("order", {})
-    payment_id = order_data.get("referenceNo") or order_data.get("orderId")
+    raw_body = await request.body()
+    sig_header = request.headers.get("x-hmac-signature") or request.headers.get("X-Hmac-Signature")
+    from providers.ziina import ZiinaProvider
+    provider = ZiinaProvider()
+    if not provider.verify_webhook(raw_body, sig_header):
+        raise HTTPException(status_code=401, detail="Invalid Ziina webhook signature")
 
-    if not payment_id:
+    try:
+        payload = json.loads(raw_body.decode() or "{}")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    normalized = provider.parse_webhook(payload)
+    if not normalized:
         return {"status": "ignored"}
 
-    status = order_data.get("status", "").upper()
-    status_map = {
-        "COMPLETED": "completed",
-        "CONFIRMED": "completed",
-        "FAILED": "failed",
-        "CANCELLED": "failed",
-        "PENDING": "pending",
-    }
+    payment_id = normalized.get("payment_id")
+    provider_order_id = normalized.get("provider_order_id")
+    new_status = normalized["status"]
 
-    new_status = status_map.get(status)
-    if not new_status:
+    if payment_id:
+        await db.execute(
+            "UPDATE payments SET status=?, provider_order_id=?, updated_at=? WHERE id=?",
+            (new_status, provider_order_id, datetime.utcnow().isoformat(), payment_id)
+        )
+    elif provider_order_id:
+        await db.execute(
+            "UPDATE payments SET status=?, updated_at=? WHERE provider_order_id=?",
+            (new_status, datetime.utcnow().isoformat(), provider_order_id)
+        )
+    else:
         return {"status": "ignored"}
 
-    await db.execute(
-        "UPDATE payments SET status=?, provider_order_id=?, updated_at=? WHERE id=?",
-        (new_status, order_data.get("orderId"), datetime.utcnow().isoformat(), payment_id)
-    )
-
-    logger.info(f"Ziina webhook: {payment_id} → {new_status}")
+    logger.info("Ziina webhook: %s / %s -> %s", payment_id, provider_order_id, new_status)
     return {"status": "ok"}
 
 
