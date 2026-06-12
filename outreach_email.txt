@@ -1,0 +1,39 @@
+Subject: Production merchant onboarding request - KARMOSTAJI TRADING LLC
+
+Hello,
+
+We are applying for production merchant access for KARMOSTAJI TRADING LLC, with legal applicant AL KARMOSTAJI TRADING ENTERPRISES, a Dubai licensed general trading business (License 200100, Register 1387701, DCCI 7447, D-U-N-S 534472717).
+
+Product URL: https://beastbrain.sichermayor.online/card-to-crypto
+
+Use case: BeastPay / BeastBrain provides a hosted card-to-crypto checkout for users buying USDT, USDC, BTC, ETH, or SOL with AED, USD, EUR, GBP, or supported fiat currencies. Card entry, KYC, issuer challenge, risk review, and settlement stay inside the approved hosted provider. BeastBrain does NOT collect raw card data, CVV, expiry, OTP, or merchant-side 3DS.
+
+Entity:
+- Legal name: AL KARMOSTAJI TRADING ENTERPRISES
+- Client label: KARMOSTAJI TRADING LLC
+- License: 200100 | Register: 1387701 | DCCI: 7447 | D-U-N-S: 534472717
+- Legal type: Limited Liability Company (LLC)
+- Activity: General Trading | License expiry: 2027-01-13
+- Address: P.O. Box 4139, Parcel ID 115-165, Dubai, UAE
+
+Contact: Mohammed Ali Vellopadikal, CEO / Partner
+Phone: +971561049878 | Email: compliance@sichermayor.online
+
+Business: Ecommerce / online retail for industrial sewing machines (including Juki brand, 10,000-50,000 AED per item).
+Expected monthly volume: USD 20K - 100K initially.
+
+Request:
+1. Merchant onboarding or partner application link
+2. KYB document checklist for UAE licensed trading entity
+3. Production API credentials / partner ID
+4. Domain/origin approval for beastbrain.sichermayor.online
+5. AED card-to-USDT/USDC support confirmation
+6. Webhook/order status guidance
+7. Commercial terms and go-live steps
+
+Our document package is ready. Please send the official secure upload/onboarding flow.
+
+Best regards,
+Mohammed Ali Vellopadikal
+CEO / Partner, KARMOSTAJI TRADING LLC
+compliance@sichermayor.online

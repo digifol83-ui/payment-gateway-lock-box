@@ -1,0 +1,57 @@
+{
+  "profile_id": "sicher_mayor_investments_llc",
+  "last_updated": "2026-05-21",
+  "legal_entity": {
+    "name": "SICHER MAYOR INVESTMENTS L.L.C",
+    "registration_number": "1324297",
+    "ded_license": "DED-1324297",
+    "jurisdiction": "Dubai, United Arab Emirates",
+    "company_type": "LLC"
+  },
+  "product": {
+    "name": "Beast AI / BeastBrain",
+    "description": "AI-powered content creation agent for creating, improving, and managing digital content.",
+    "category": "software_ai_content_creation_digital_services",
+    "preferred_review_url": "https://brain-api-w7wsg6vria-uc.a.run.app",
+    "alternate_service_url": "https://beastpay-api-544494288390.us-central1.run.app"
+  },
+  "payment_use_case": {
+    "primary": "Small card payments for AI credits and subscriptions",
+    "typical_ticket_usd": "5-20",
+    "card_data_handling": "provider_hosted_checkout_only",
+    "excluded_providers": ["stripe", "transak", "onramper"]
+  },
+  "required_documents": [
+    "trade_license_ded_1324297",
+    "commercial_register_or_registration_extract",
+    "moa_or_articles_of_association",
+    "partners_or_shareholder_list",
+    "ubo_director_passport_and_emirates_id",
+    "authorized_signatory_proof_if_applicable",
+    "company_bank_statement_or_bank_letter",
+    "proof_of_address_if_requested"
+  ],
+  "document_status": {
+    "checked_at": "2026-05-21",
+    "ready_for_provider_upload": false,
+    "blocker": "Investment entity license, MOA/articles, and partners list for DED-1324297 were not found by filename search in the current workspace.",
+    "searched_locations": [
+      "/home/kali/payment-gateway/uploads",
+      "/mnt/c/Users/shahe/Downloads"
+    ]
+  },
+  "compliance_notes": [
+    "Merchant KYB is required for card acquiring even when customer payments are small.",
+    "Do not use SICHER MAYOR COMMERCIAL BROKERS L.L.C DED 841208 documents as primary proof for this profile unless the provider accepts related-entity evidence.",
+    "BeastBrain must not store raw card numbers, expiry dates, or CVV."
+  ],
+  "recommended_provider_order": [
+    "ziina",
+    "tap_payments",
+    "paymob_uae",
+    "telr",
+    "network_international_ngenius",
+    "amazon_payment_services",
+    "checkout_com"
+  ]
+}

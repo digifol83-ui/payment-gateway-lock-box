@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — BeastPay · SICHER MAYOR COMMERCIAL BROKERS L.L.C</title>
+<meta name="description" content="Terms of Service for BeastPay, operated by SICHER MAYOR COMMERCIAL BROKERS L.L.C (Dubai DED Licence 841208).">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a2e;background:#fafafa;line-height:1.7}
+  .nav{position:sticky;top:0;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid #eee;z-index:100}
+  .nav-inner{max-width:1200px;margin:0 auto;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center}
+  .logo{font-weight:700;font-size:1.25rem;color:#0f3460;text-decoration:none}
+  .logo span{color:#e94560}
+  .nav-links a{color:#555;text-decoration:none;margin-left:1.5rem;font-size:.95rem}
+  .nav-links a:hover{color:#e94560}
+  main{max-width:820px;margin:0 auto;padding:3rem 2rem}
+  h1{font-size:2.25rem;color:#0f3460;margin-bottom:.5rem}
+  .meta{color:#888;font-size:.9rem;margin-bottom:2.5rem;padding-bottom:1.5rem;border-bottom:1px solid #eee}
+  h2{font-size:1.35rem;color:#0f3460;margin:2.5rem 0 .75rem}
+  h3{font-size:1.1rem;color:#0f3460;margin:1.5rem 0 .5rem}
+  p,li{color:#333;margin-bottom:.75rem;font-size:1rem}
+  ul,ol{padding-left:1.5rem;margin-bottom:1rem}
+  li{margin-bottom:.4rem}
+  strong{color:#0f3460}
+  .callout{background:#f5f5f5;border-left:3px solid #e94560;padding:1rem 1.25rem;border-radius:4px;margin:1rem 0}
+  .footer{background:#0f3460;color:#aaa;padding:2rem;text-align:center;font-size:.9rem;margin-top:4rem}
+  .footer a{color:#aaa;text-decoration:none;margin:0 .75rem}
+  .footer a:hover{color:#e94560}
+  .footer strong{color:#fff}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="logo">Beast<span>Pay</span></a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/docs">API Docs</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <h1>Terms of Service</h1>
+  <div class="meta">Last updated: 9 May 2026 · Effective: 9 May 2026</div>
+
+  <p>These Terms of Service (the "Terms") form a binding agreement between you ("you", "user", "merchant") and <strong>SICHER MAYOR COMMERCIAL BROKERS L.L.C</strong> ("BeastPay", "we", "us", "our"), a company licensed by the Dubai Department of Economic Development (DED Licence No. 841208) and registered at Dubai, United Arab Emirates.</p>
+
+  <p>By accessing or using the BeastPay payment gateway, APIs, websites, or related services (the "Service"), you accept these Terms. If you do not accept them, do not use the Service.</p>
+
+  <h2>1. The Service</h2>
+  <p>BeastPay is a fiat-to-crypto and crypto-to-crypto payment gateway. We operate as a technical orchestration layer that routes transactions through licensed third-party payment processors and on-ramp/off-ramp providers (each a "Provider"). BeastPay is <strong>not</strong> a custodian — settlement assets flow from the Provider to the destination wallet you supply, never to a wallet under our exclusive control.</p>
+
+  <h2>2. Eligibility</h2>
+  <p>To use the Service you must:</p>
+  <ul>
+    <li>Be at least 18 years old and of legal capacity in your jurisdiction.</li>
+    <li>Not be a resident of, citizen of, or located in any sanctioned jurisdiction (including those subject to UN, UAE, US OFAC, UK, or EU sanctions).</li>
+    <li>Not appear on any sanctions, terrorist-financing, or politically-exposed-person list that would prohibit our doing business with you.</li>
+    <li>Use the Service only for lawful purposes and in compliance with all applicable laws.</li>
+  </ul>
+
+  <h2>3. Accounts and KYC</h2>
+  <p>Some features require an account or identity verification. KYC requirements scale with transaction value:</p>
+  <ul>
+    <li><strong>Tier 0:</strong> below the configured free limit — wallet address only.</li>
+    <li><strong>Tier 1:</strong> up to the email-KYC limit — verified email (one-time-password).</li>
+    <li><strong>Tier 2:</strong> above the email-KYC limit — full identity verification via Sumsub (ID, liveness, address, source-of-funds).</li>
+  </ul>
+  <p>You agree to provide accurate, current, and complete information and to update it promptly. You are responsible for safeguarding your credentials and any actions taken under your account.</p>
+
+  <h2>4. Acceptable use</h2>
+  <p>You may not use the Service to:</p>
+  <ul>
+    <li>Engage in money laundering, terrorist financing, sanctions evasion, fraud, or any illegal activity.</li>
+    <li>Process payments related to: weapons trafficking, narcotics, child sexual abuse material, human trafficking, ransomware, darknet markets, mixers/tumblers, unlicensed gambling, unregistered securities, or any business prohibited by our Provider partners.</li>
+    <li>Circumvent KYC, transaction limits, or geographic restrictions.</li>
+    <li>Reverse-engineer, scrape, or interfere with the Service or its underlying infrastructure.</li>
+    <li>Submit information that is false, misleading, or belongs to another person without authorisation.</li>
+    <li>Use the Service to facilitate transactions on behalf of third parties without our written authorisation (no "payment-for-others" or shadow merchant arrangements).</li>
+  </ul>
+
+  <div class="callout">
+    <strong>PCI-DSS:</strong> BeastPay never accepts, transmits, or stores full primary account numbers (PAN), CVV/CVC, or PIN. All card data is captured by PCI-DSS Level 1 Providers; BeastPay receives only safe tokenised attributes (last-4, brand, BIN, expiry month/year, fingerprint).
+  </div>
+
+  <h2>5. Transactions, fees, and settlement</h2>
+  <ul>
+    <li>Each transaction is routed to the most suitable Provider based on currency, destination, and verification status.</li>
+    <li>Fees are disclosed at checkout. They include a Provider fee (typically 0–4%) and may include a BeastPay routing fee. Network fees ("gas") are paid by you and deducted from the settled amount where applicable.</li>
+    <li>Quoted exchange rates are valid only for the quote window shown at checkout.</li>
+    <li>Cryptocurrency transactions are <strong>irreversible</strong> once confirmed on the destination network. Verify the destination wallet address carefully.</li>
+    <li>Settlement times depend on the Provider and network conditions and are not guaranteed.</li>
+  </ul>
+
+  <h2>6. Refunds and reversals</h2>
+  <p>Because cryptocurrency transactions cannot be reversed on-chain, refund eligibility depends on the Provider used and the lifecycle stage of the transaction:</p>
+  <ul>
+    <li><strong>Before crypto settlement:</strong> if the fiat leg has been collected but crypto has not yet been delivered, the transaction may be cancellable. Contact <a href="mailto:support@sichermayor.online">support@sichermayor.online</a> immediately.</li>
+    <li><strong>After crypto settlement:</strong> the transaction is final. Disputes about merchant goods or services are between you and the merchant; BeastPay is not the merchant of record.</li>
+    <li><strong>Card chargebacks:</strong> issued by your card issuer, are governed by card-network rules and the Provider's processor agreement. Successful chargebacks may result in account suspension.</li>
+  </ul>
+
+  <h2>7. Suspension and termination</h2>
+  <p>We may suspend, restrict, or terminate your access to the Service, with or without notice, where we reasonably believe:</p>
+  <ul>
+    <li>You have breached these Terms.</li>
+    <li>Your activity exposes us, a Provider, or other users to legal, regulatory, financial, or reputational risk.</li>
+    <li>Continued service would violate applicable law or a Provider's policy.</li>
+  </ul>
+  <p>You may stop using the Service at any time. KYC and transaction records will be retained as required by law.</p>
+
+  <h2>8. Risk disclosure</h2>
+  <p>You acknowledge that:</p>
+  <ul>
+    <li>Cryptocurrency values are volatile and may decline rapidly. You may lose money.</li>
+    <li>The regulatory status of cryptocurrency varies by jurisdiction and may change.</li>
+    <li>Blockchain transactions are public and pseudonymous, not anonymous.</li>
+    <li>Loss of wallet keys, mistyped addresses, or sending to incompatible chains will result in unrecoverable loss of funds.</li>
+    <li>Smart-contract bugs and Provider outages may delay or fail transactions.</li>
+    <li>BeastPay does <strong>not</strong> provide investment, tax, or legal advice.</li>
+  </ul>
+
+  <h2>9. Disclaimer of warranties</h2>
+  <p>The Service is provided "as is" and "as available" without warranties of any kind, whether express, implied, or statutory, including merchantability, fitness for a particular purpose, accuracy, or non-infringement. We do not warrant that the Service will be uninterrupted, error-free, or secure.</p>
+
+  <h2>10. Limitation of liability</h2>
+  <p>To the maximum extent permitted by law, BeastPay's aggregate liability arising out of or in connection with these Terms or the Service is limited to the lesser of (a) the fees you paid to BeastPay in the three (3) months preceding the event giving rise to the claim, or (b) US$1,000. We are not liable for indirect, incidental, special, consequential, or exemplary damages, including lost profits, loss of data, or loss of goodwill.</p>
+  <p>Nothing in these Terms excludes liability that cannot be excluded under UAE law.</p>
+
+  <h2>11. Indemnification</h2>
+  <p>You agree to indemnify and hold harmless BeastPay, its affiliates, officers, employees, and agents from any claim, demand, loss, or expense (including reasonable legal fees) arising out of your breach of these Terms, your violation of law, or your misuse of the Service.</p>
+
+  <h2>12. Intellectual property</h2>
+  <p>The Service, including its software, design, trademarks, and content, is owned by BeastPay or its licensors. You receive a limited, non-exclusive, non-transferable licence to use the Service for its intended purpose. No other rights are granted.</p>
+
+  <h2>13. Third-party services</h2>
+  <p>The Service relies on Providers and other third parties whose own terms apply to your transactions. We are not responsible for the acts, omissions, fees, or availability of third-party services.</p>
+
+  <h2>14. Changes to the Terms</h2>
+  <p>We may update these Terms from time to time. The "Last updated" date reflects the most recent revision. Material changes will be communicated through the Service. Continued use after changes constitutes acceptance.</p>
+
+  <h2>15. Governing law and dispute resolution</h2>
+  <p>These Terms are governed by the laws of the Emirate of Dubai and the federal laws of the United Arab Emirates, without regard to conflict-of-laws principles. Any dispute arising out of or relating to these Terms shall be subject to the exclusive jurisdiction of the Dubai Courts, except where mandatory law requires otherwise.</p>
+
+  <h2>16. Severability and entire agreement</h2>
+  <p>If any provision of these Terms is held unenforceable, the remaining provisions remain in full force. These Terms, together with the Privacy Policy and any documents they reference, are the entire agreement between you and BeastPay regarding the Service.</p>
+
+  <h2>17. Contact</h2>
+  <p>SICHER MAYOR COMMERCIAL BROKERS L.L.C<br>
+  Dubai, United Arab Emirates<br>
+  DED Licence No. 841208<br>
+  General: <a href="mailto:info@sichermayor.online">info@sichermayor.online</a><br>
+  Support: <a href="mailto:support@sichermayor.online">support@sichermayor.online</a><br>
+  Compliance: <a href="mailto:compliance@sichermayor.online">compliance@sichermayor.online</a></p>
+</main>
+
+<footer class="footer">
+  <p><a href="/">Home</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/docs">API Docs</a></p>
+  <p style="margin-top:1rem">© 2026 <strong>SICHER MAYOR COMMERCIAL BROKERS L.L.C</strong> · Licensed by Dubai DED 841208</p>
+</footer>
+
+</body>
+</html>

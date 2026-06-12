@@ -1,0 +1,23 @@
+Hello Transak Support Team,
+
+Please enable API-based Create Widget URL for our Production partner account and confirm backend/IP whitelisting requirements.
+
+Account:
+- Company: SICHER MAYOR
+- Dashboard email: sichermayor@wshu.net
+- Production referrer domain: beastpay-api-544494288390.us-central1.run.app
+- Backend URL: https://beastpay-api-544494288390.us-central1.run.app
+- Backend provider: Google Cloud Run, us-central1
+- Static backend egress IP: 34.55.54.52
+
+Current verified behavior:
+- POST /partners/api/v2/refresh-token succeeds with our Production API key and API secret
+- POST /api-gateway.transak.com/api/v2/auth/session rejects the fresh token with HTTP 401 (errorCode 1002)
+
+Please confirm and enable:
+- Production access to api-gateway.transak.com/api/v2/auth/session
+- The Production API key is approved for API-based Create Widget URL
+- Backend/Cloud Run egress IP whitelisting (34.55.54.52)
+- Referrer domain beastpay-api-544494288390.us-central1.run.app is approved
+
+No secrets included. Can provide API key fingerprint privately if needed.

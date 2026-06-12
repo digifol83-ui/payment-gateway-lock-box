@@ -15,21 +15,29 @@ Endpoints:
 from __future__ import annotations
 
 import os, sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'brain-api'))
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from card_backend import (
-    create_card_entry,
-    push_through_pipeline,
-    push_agent_step,
-    list_all_cards,
-    get_card_entry,
-    delete_card_entry,
-    get_pipeline_summary,
-    AGENT_PIPELINE,
-)
+# Optional brain-api card_backend import (available when deployed with brain-api)
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'brain-api'))
+    from card_backend import (
+        create_card_entry,
+        push_through_pipeline,
+        push_agent_step,
+        list_all_cards,
+        get_card_entry,
+        delete_card_entry,
+        get_pipeline_summary,
+        AGENT_PIPELINE,
+    )
+    CARDS_AVAILABLE = True
+except ImportError:
+    CARDS_AVAILABLE = False
+    create_card_entry = push_through_pipeline = push_agent_step = None
+    list_all_cards = get_card_entry = delete_card_entry = get_pipeline_summary = None
+    AGENT_PIPELINE = {}
 
 
 router = APIRouter(prefix="/cards", tags=["Cards"])
@@ -74,8 +82,13 @@ class CardResponse(BaseModel):
 # Routes
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _require_cards():
+    if not CARDS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Card backend not available")
+
 @router.post("")
 async def create_card(req: CardCreateRequest):
+    _require_cards()
     """Create a new card entry and optionally push through the agent pipeline.
     
     The card flows through three agents:
@@ -103,18 +116,21 @@ async def create_card(req: CardCreateRequest):
 
 @router.get("")
 async def list_cards():
+    _require_cards()
     """List all card entries (masked — only last 4 digits shown)."""
     return {"cards": list_all_cards(), "count": len(list_all_cards())}
 
 
 @router.get("/summary")
 async def cards_summary():
+    _require_cards()
     """Get pipeline summary statistics."""
     return get_pipeline_summary()
 
 
 @router.get("/{entry_id}")
 async def get_card(entry_id: str):
+    _require_cards()
     """Get detailed info for a single card entry."""
     entry = get_card_entry(entry_id)
     if not entry:
@@ -124,6 +140,7 @@ async def get_card(entry_id: str):
 
 @router.delete("/{entry_id}")
 async def delete_card(entry_id: str):
+    _require_cards()
     """Delete a card entry."""
     result = delete_card_entry(entry_id)
     if "error" in result:
@@ -133,6 +150,7 @@ async def delete_card(entry_id: str):
 
 @router.post("/{entry_id}/pipeline")
 async def push_card_pipeline(entry_id: str):
+    _require_cards()
     """Push a card entry through the full A1→A2→A3 agent pipeline."""
     result = push_through_pipeline(entry_id)
     if "error" in result:
@@ -142,6 +160,7 @@ async def push_card_pipeline(entry_id: str):
 
 @router.post("/{entry_id}/step/{agent_id}")
 async def push_card_step(entry_id: str, agent_id: str):
+    _require_cards()
     """Push a card entry to a single agent (A1, A2, or A3)."""
     agent_id = agent_id.upper()
     if agent_id not in AGENT_PIPELINE:

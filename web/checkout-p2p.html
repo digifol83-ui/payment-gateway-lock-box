@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeastPay — Buy USDT with AED</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#fff;min-height:100vh}
+.container{max-width:650px;margin:0 auto;padding:16px}
+.header{text-align:center;padding:24px 0 12px}
+.header h1{font-size:26px;background:linear-gradient(135deg,#f0b90b,#f7931a);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:#888;margin-top:6px;font-size:13px}
+.card{background:#1a1a1a;border-radius:14px;padding:20px;margin:12px 0;border:1px solid #2a2a2a}
+.card h3{font-size:16px;margin-bottom:8px;color:#f0b90b}
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:14px}
+.row .label{color:#888}
+.row .val{font-weight:600}
+.input-group{margin:12px 0}
+.input-group label{display:block;color:#888;font-size:12px;margin-bottom:4px}
+.input-group input,.input-group select{width:100%;padding:12px;background:#111;border:1px solid #333;border-radius:8px;color:#fff;font-size:16px}
+.offer{background:#111;border-radius:10px;padding:14px;margin:10px 0;border:2px solid #222;cursor:pointer;transition:all .2s}
+.offer:hover{border-color:#f0b90b}
+.offer.selected{border-color:#f0b90b;background:#1a1800}
+.offer .price{font-size:20px;font-weight:700;color:#f0b90b}
+.offer .merchant{color:#aaa;font-size:13px}
+.offer .avail{color:#4ade80;font-weight:600}
+.offer .meta{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;background:#1a2a3a;color:#60a5fa}
+.badge-green{background:#0a2a0a;color:#4ade80}
+.badge-yellow{background:#2a1a00;color:#f0b90b}
+.badge-red{background:#2a0a0a;color:#f87171}
+.filter-row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+.filter-btn{padding:6px 14px;border-radius:20px;border:1px solid #333;background:transparent;color:#888;cursor:pointer;font-size:12px}
+.filter-btn.active{background:#1a2a3a;border-color:#60a5fa;color:#60a5fa}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;text-align:center}
+.btn-primary{background:linear-gradient(135deg,#f0b90b,#f7931a);color:#000;margin:8px 0}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-outline{background:transparent;border:2px solid #f0b90b;color:#f0b90b}
+.summary{background:#111;border-radius:10px;padding:16px;margin:12px 0}
+.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:14px}
+.summary-row:last-child{border:none}
+.receive{font-size:24px;font-weight:800;color:#4ade80}
+.instructions{background:#0a1a0a;border:1px solid #1a3a1a;border-radius:10px;padding:16px;margin:12px 0}
+.instructions h4{color:#4ade80;margin-bottom:8px}
+.instructions ol{margin-left:18px;color:#ccc;line-height:1.8}
+.instructions code{background:#000;padding:2px 6px;border-radius:3px;font-size:12px}
+.status-box{text-align:center;padding:20px}
+.status-box.success h3{color:#4ade80}
+.spinner{border:3px solid #333;border-top:3px solid #f0b90b;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;margin:12px auto}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>💱 Buy USDT with AED</h1>
+<p>Bank transfer · No KYC · Live Binance P2P rates</p>
+</div>
+
+<!-- STEP 1: Amount + Wallet -->
+<div class="card" id="step1">
+<h3>Step 1 — Amount & Wallet</h3>
+<div class="input-group">
+<label>You send (AED)</label>
+<input type="number" id="amount" value="1000" min="50" step="100" onchange="updateSummary()" autofocus>
+</div>
+<div class="input-group">
+<label>Receive</label>
+<select id="crypto" onchange="loadOffers()">
+<option>USDT</option><option>USDC</option><option>BTC</option><option>ETH</option>
+</select>
+</div>
+<div class="input-group">
+<label>Your wallet address</label>
+<input type="text" id="wallet" placeholder="Paste wallet address" value="7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7">
+</div>
+</div>
+
+<!-- STEP 2: Offers -->
+<div id="step2-container">
+<div class="card" id="step2-loading">
+<div class="spinner"></div><p style="text-align:center;color:#888">Loading live offers...</p>
+</div>
+</div>
+
+<!-- STEP 3: Payment instructions (hidden initially) -->
+<div id="step3" style="display:none"></div>
+</div>
+
+<script>
+let offers=[], selected=null, paymentId=null;
+
+async function loadOffers(){
+const step2=document.getElementById('step2-container');
+step2.innerHTML='<div class="card"><div class="spinner"></div><p style="text-align:center;color:#888">Fetching live Binance P2P offers...</p></div>';
+
+try{
+const crypto=document.getElementById('crypto').value;
+const r=await fetch(`/api/p2p/offers?fiat=AED&crypto=${crypto}&limit=15`);
+const d=await r.json();
+offers=d.offers||[];
+
+if(!offers.length){step2.innerHTML='<div class="card"><p style="color:#f87171">No offers. Try different crypto.</p></div>';return;}
+
+let html=`<div class="card">
+<div class="row"><span class="label">${d.summary.total_offers} offers</span><span class="badge badge-green">● LIVE</span></div>
+<div class="row"><span class="label">Best rate</span><span class="val" style="color:#f0b90b">${d.summary.best_price} AED</span></div>
+<div class="row"><span class="label">Available</span><span class="avail">${d.summary.total_available} ${crypto}</span></div>
+<div class="filter-row">
+<span class="filter-btn active" onclick="filterOffers('all',this)">All</span>
+<span class="filter-btn" onclick="filterOffers('BANK',this)">Bank</span>
+<span class="filter-btn" onclick="filterOffers('Aani',this)">Aani</span>
+<span class="filter-btn" onclick="filterOffers('ADIB',this)">ADIB</span>
+<span class="filter-btn" onclick="filterOffers('ADCB',this)">ADCB</span>
+</div>
+</div>`;
+
+offers.forEach((o,i)=>{
+const cryptoAmt=(document.getElementById('amount').value/o.price).toFixed(6);
+const payments=(o.payments||['BANK']).slice(0,3).map(p=>`<span class="badge">${p}</span>`).join('');
+const isSel=selected&&selected.merchant===o.merchant&&selected.price===o.price;
+const tradeCount=o.merchant_month_order||0;
+const completion=o.merchant_month_finish?Math.round(o.merchant_month_finish*100):'?';
+html+=`<div class="offer${isSel?' selected':''}" onclick="selectOffer(${i})" data-payments="${(o.payments||['BANK']).join(',')}">
+<div class="row"><span class="price">${o.price} AED</span><span class="avail">≈ ${cryptoAmt} ${crypto}</span></div>
+<div class="row"><span class="merchant">👤 ${o.merchant}</span><span style="color:#888;font-size:11px">${tradeCount} trades · ${completion}% complete</span></div>
+<div class="row"><span style="color:#888;font-size:11px">${o.min_amount}–${o.max_amount} AED</span></div>
+<div class="meta">${payments}<span class="badge badge-yellow">BINANCE</span></div>
+</div>`;
+});
+step2.innerHTML=html;
+updateSummary();
+}catch(e){step2.innerHTML='<div class="card"><p style="color:#f87171">Failed to load. Retrying...</p></div>';setTimeout(loadOffers,3000);}
+}
+
+function filterOffers(type,btn){
+document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+btn.classList.add('active');
+const container=document.getElementById('step2-container');
+const allOffers=container.querySelectorAll('.offer');
+allOffers.forEach(o=>{
+if(type==='all'){o.style.display='';return;}
+const payments=o.getAttribute('data-payments')||'';
+o.style.display=payments.includes(type)?'':'none';
+});
+}
+
+function selectOffer(i){
+selected=offers[i];
+const amount=parseFloat(document.getElementById('amount').value);
+if(amount<selected.min_amount||amount>selected.max_amount){
+alert(`Amount must be between ${selected.min_amount} and ${selected.max_amount} AED for this merchant`);
+return;
+}
+document.querySelectorAll('.offer').forEach(e=>e.classList.remove('selected'));
+document.querySelectorAll('.offer')[i].classList.add('selected');
+updateSummary();
+}
+
+function updateSummary(){
+const amount=parseFloat(document.getElementById('amount').value)||0;
+if(!selected||!amount)return;
+
+const crypto=document.getElementById('crypto').value;
+const wallet=document.getElementById('wallet').value.trim();
+const cryptoAmt=(amount/selected.price).toFixed(6);
+
+document.getElementById('step3').style.display='block';
+document.getElementById('step3').innerHTML=`
+<div class="card">
+<h3>💳 Payment Summary</h3>
+<div class="summary">
+<div class="summary-row"><span>You send</span><span style="font-weight:700">${amount.toFixed(2)} AED</span></div>
+<div class="summary-row"><span>Rate</span><span style="color:#f0b90b">1 USDT = ${selected.price} AED</span></div>
+<div class="summary-row"><span>You receive</span><span class="receive">${cryptoAmt} ${crypto}</span></div>
+<div class="summary-row"><span>Merchant</span><span>${selected.merchant} (${selected.exchange.replace('_p2p','').toUpperCase()})</span></div>
+<div class="summary-row"><span>Payment</span><span>${(selected.payments||['Bank Transfer']).join(', ')}</span></div>
+<div class="summary-row"><span>Wallet</span><span style="font-size:11px"><code>${wallet.substring(0,12)}...${wallet.substring(wallet.length-6)}</code></span></div>
+</div>
+<button class="btn btn-primary" onclick="startPayment()">🔒 Confirm & Pay</button>
+</div>`;
+}
+
+async function startPayment(){
+if(!selected)return;
+const amount=parseFloat(document.getElementById('amount').value);
+const crypto=document.getElementById('crypto').value;
+const wallet=document.getElementById('wallet').value.trim();
+
+if(!wallet){alert('Enter wallet address');return;}
+
+const params=new URLSearchParams({fiat:'AED',crypto,amount,wallet,offer_price:selected.price,offer_merchant:selected.merchant,offer_exchange:selected.exchange});
+const r=await fetch('/api/p2p/pay?'+params,{method:'POST'});
+const payment=await r.json();
+if(payment.error){alert(payment.error);return;}
+
+paymentId=payment.payment_id;
+const cryptoAmt=payment.crypto_amount;
+
+document.getElementById('step3').innerHTML=`
+<div class="card">
+<h3 style="color:#4ade80">✅ Payment Created</h3>
+<p style="color:#888;font-size:12px;margin-bottom:12px">ID: ${paymentId}</p>
+</div>
+
+<div class="instructions">
+<h4>📋 Complete your payment</h4>
+<ol>
+<li>Open your bank app or online banking</li>
+<li>Send <strong>${amount.toFixed(2)} AED</strong> via <strong>${(selected.payments||['Bank Transfer']).join(' or ')}</strong></li>
+<li>Recipient: <strong>${selected.merchant}</strong> on Binance P2P</li>
+<li>After sending, the merchant releases <strong style="color:#4ade80">${cryptoAmt} ${crypto}</strong> to:</li>
+<li><code style="word-break:break-all">${wallet}</code></li>
+</ol>
+
+<div style="margin-top:12px;padding:12px;background:#1a1a00;border-radius:8px;border:1px solid #2a2a00">
+<p style="color:#f0b90b;font-size:13px">⚠️ Make sure to send <strong>EXACTLY ${amount.toFixed(2)} AED</strong> using the payment method shown above. The merchant will verify and release crypto within 5-15 minutes.</p>
+</div>
+</div>
+
+<div class="card">
+<h3>📱 Payment Methods Supported</h3>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+${(selected.payments||['BANK']).map(p=>`<span class="badge" style="font-size:13px;padding:6px 14px">${p}</span>`).join('')}
+</div>
+<p style="color:#888;font-size:12px;margin-top:12px">Open Binance P2P to find <strong>${selected.merchant}</strong> and complete the transfer.</p>
+<a href="${selected.url||'https://p2p.binance.com/en/trade/all-payments/USDT?fiat=AED'}" target="_blank" class="btn btn-outline" style="text-decoration:none;display:block;margin-top:8px">
+🔗 Open ${selected.merchant} on Binance P2P →
+</a>
+</div>
+
+<div class="card">
+<h3>✅ Confirm Receipt</h3>
+<p style="color:#888;font-size:12px;margin-bottom:8px">After you receive crypto in your wallet, confirm below:</p>
+<input type="text" id="txHash" placeholder="Transaction hash (optional)" style="width:100%;padding:12px;background:#111;border:1px solid#333;border-radius:8px;color:#fff;margin:8px 0">
+<button class="btn btn-primary" onclick="confirmPayment()">✅ I Received My Crypto</button>
+<div id="confirmResult"></div>
+</div>`;
+
+document.getElementById('step1').style.display='none';
+document.getElementById('step2-container').style.display='none';
+}
+
+async function confirmPayment(){
+const tx=document.getElementById('txHash')?.value?.trim()||'confirmed';
+const r=await fetch(`/api/p2p/pay/${paymentId}/confirm?tx_hash=${encodeURIComponent(tx)}`,{method:'POST'});
+const d=await r.json();
+document.getElementById('confirmResult').innerHTML=`
+<div class="status-box success" style="margin-top:12px">
+<h3>🎉 Payment Complete!</h3>
+<p style="margin:8px 0">${d.crypto_amount} ${d.crypto_currency} delivered</p>
+<p style="color:#888;font-size:11px">Payment ID: ${paymentId}</p>
+</div>`;
+}
+
+// Initial load
+loadOffers();
+setInterval(loadOffers,25000);
+</script>
+</body>
+</html>

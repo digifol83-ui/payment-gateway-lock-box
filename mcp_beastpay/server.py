@@ -393,7 +393,7 @@ class BeastPayMCPServer:
 
             if provider_id == 'transak':
                 from providers.transak import TransakProvider
-                redirect_url = TransakProvider().build_widget_url(payment)
+                redirect_url = await TransakProvider().create_widget_url(payment)
             elif provider_id == 'moonpay':
                 from providers.moonpay import MoonPayProvider
                 redirect_url = MoonPayProvider().build_widget_url(payment)

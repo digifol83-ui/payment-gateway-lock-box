@@ -40,6 +40,10 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import aiohttp
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import APIRouter, HTTPException, Header, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -54,7 +58,7 @@ TRANSAK_SECRET        = os.getenv("TRANSAK_SECRET", "")
 TRANSAK_ACCESS_TOKEN  = os.getenv("TRANSAK_ACCESS_TOKEN", "")
 TRANSAK_ENV           = (os.getenv("TRANSAK_ENV", "PRODUCTION")).upper()
 TRANSAK_BRAND_NAME    = os.getenv("TRANSAK_BRAND_NAME", "BeastPay")
-TRANSAK_COMPANY_NAME  = os.getenv("TRANSAK_COMPANY_NAME", "SICHER MAYOR COMMERCIAL BROKERS L.L.C")
+TRANSAK_COMPANY_NAME  = os.getenv("TRANSAK_COMPANY_NAME", "KARMOSTAJI TRADING LLC")
 TRANSAK_LOGO_URL      = os.getenv("TRANSAK_LOGO_URL", "")
 TRANSAK_WEBSITE       = os.getenv("TRANSAK_WEBSITE", os.getenv("BASE_URL", "https://beastpay.com"))
 TRANSAK_THEME         = (os.getenv("TRANSAK_THEME", "dark")).upper()
@@ -848,14 +852,44 @@ async def create_session(req: dict):
         partner_order_id=(req.get("partner_order_id") or "").strip(),
     )
 
-    result = await create_transak_session(params)
-    return {**result, "status": "session_created"}
+    try:
+        result = await create_transak_session(params)
+        return {**result, "status": "session_created"}
+    except Exception:
+        # Fallback: build direct query-parameter widget URL
+        widget_params = params.to_widget_params()
+        import urllib.parse
+        query = urllib.parse.urlencode({k: str(v) for k, v in widget_params.items() if v})
+        widget_url = f"{WIDGET_BASE}?{query}"
+        return {
+            "widget_url": widget_url,
+            "session_id": None,
+            "partner_order_id": widget_params.get("partnerOrderId"),
+            "fiat_amount": widget_params.get("fiatAmount"),
+            "fiat_currency": widget_params.get("fiatCurrency"),
+            "crypto_currency": widget_params.get("cryptoCurrencyCode"),
+            "network": widget_params.get("network"),
+            "wallet_address": widget_params.get("walletAddress"),
+            "status": "session_created_fallback",
+            "note": "Using query-param widget URL (session API unavailable)",
+        }
 
 
 @router.get("/buy", response_class=HTMLResponse)
 async def transak_buy_page():
     """Transak-only checkout HTML page with wallet input and AED support."""
     return HTMLResponse(content=TRANSAK_CHECKOUT_HTML)
+
+
+@router.get("/card", response_class=HTMLResponse)
+async def card_checkout_page():
+    """Card-based checkout with pre-validation. Collects card details, validates with Transak, shows approval before redirect."""
+    import os
+    card_html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "card-checkout.html")
+    if os.path.exists(card_html_path):
+        with open(card_html_path, "r") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Card checkout not available</h1>", status_code=404)
 
 
 @router.get("/buy/{wallet}")

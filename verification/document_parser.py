@@ -5,8 +5,6 @@ incorporation date, license numbers, and business address from raw document text
 """
 from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
 
-from .anthropic_client import messages_create_json_object
-
 DOCUMENT_TYPES = (
     "MOA", "AOA", "business_license",
     "registration_certificate", "incorporation_document", "other"
@@ -49,6 +47,8 @@ async def parse_company_document(
     """
     if not ANTHROPIC_API_KEY:
         raise RuntimeError("ANTHROPIC_API_KEY not configured")
+
+    from .anthropic_client import messages_create_json_object
 
     instructions = TYPE_INSTRUCTIONS.get(document_type, TYPE_INSTRUCTIONS["other"])
     prompt = f"{instructions}\n\nDocument Content:\n{document_text}\n\nExtract all company information and provide a confidence score (0-100)."

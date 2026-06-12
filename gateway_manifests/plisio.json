@@ -1,0 +1,46 @@
+{
+  "provider":      "plisio",
+  "type":          "crypto-only",
+  "signup_url":    "https://plisio.net/account/signup",
+  "dashboard_url": "https://plisio.net/account/api/keys",
+  "api_docs":      "https://plisio.net/documentation/endpoints/create-an-invoice",
+  "captcha":       "recaptcha-v2",
+  "email_verify":  true,
+  "sms_otp":       false,
+  "kyc_required":  false,
+  "fee_pct":       0.5,
+
+  "merchant_facts": {
+    "name":  "SICHER MAYOR INVESTMENTS L.L.C",
+    "email": "digifol83@gmail.com",
+    "phone": "+971 58 207 2285",
+    "country": "United Arab Emirates"
+  },
+
+  "signup_fields": [
+    {"label": "Email",            "value": "digifol83@gmail.com"},
+    {"label": "Password",         "value": "<set fresh — NOT the Gmail password>"},
+    {"label": "Confirm password", "value": "<same>"},
+    {"label": "Merchant name",    "value": "BeastPay"},
+    {"label": "Country",          "value": "United Arab Emirates"}
+  ],
+
+  "credential_fields": [
+    {"env": "PLISIO_API_KEY",       "label": "API Key",  "source": "Dashboard → API Keys"},
+    {"env": "PLISIO_SECRET_KEY",    "label": "Secret",   "source": "(optional, for webhook HMAC verification)"}
+  ],
+
+  "post_signup_steps": [
+    "Sign up at https://plisio.net/account/signup",
+    "Confirm email verification link in Gmail",
+    "Log in → Dashboard → API Keys → 'Generate New Key'",
+    "Copy the API Key",
+    "Paste into .env: PLISIO_API_KEY=...",
+    "Run smoke test (write activate_plisio.py following the coinremitter pattern)"
+  ],
+
+  "smoke_test_script": "activate_plisio.py",
+  "webhook_endpoint":  "/webhooks/plisio",
+  "memory_node":       "coinremitter-plisio-stubs",
+  "adapter_status":    "STUB — providers/plisio.py is 3 lines; must be rewritten before going live"
+}

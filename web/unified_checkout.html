@@ -55,26 +55,18 @@
       <label>Email (optional)</label>
       <input id="email" type="email" placeholder="you@example.com" />
 
-      <label>Destination wallet (required for fiat-to-crypto)</label>
-      <input id="wallet" type="text" placeholder="0x... / T... / bc1..." />
+      <label>Your email (for receipt)</label>
+      <input id="email2" type="email" placeholder="you@example.com" />
 
-      <label>Pay via</label>
+      <label>Pay with wallet</label>
       <div class="providers" id="providers">
-        <div class="pbtn sel" data-provider="stripe" onclick="selectProvider('stripe')">
-          <div class="pname">Stripe</div>
-          <div class="pdesc">Card (hosted)</div>
+        <div class="pbtn sel" data-provider="metamask" onclick="selectProvider('metamask')">
+          <div class="pname">🦊 MetaMask</div>
+          <div class="pdesc">Direct wallet (USDT/USDC/ETH/BNB)</div>
         </div>
-        <div class="pbtn" data-provider="transak" onclick="selectProvider('transak')">
-          <div class="pname">Transak</div>
-          <div class="pdesc">Fiat→crypto</div>
-        </div>
-        <div class="pbtn" data-provider="moonpay" onclick="selectProvider('moonpay')">
-          <div class="pname">MoonPay</div>
-          <div class="pdesc">Fiat→crypto</div>
-        </div>
-        <div class="pbtn" data-provider="metamask" onclick="selectProvider('metamask')">
-          <div class="pname">MetaMask</div>
-          <div class="pdesc">Wallet-native</div>
+        <div class="pbtn" data-provider="trustwallet" onclick="selectProvider('trustwallet')">
+          <div class="pname">🛡️ Trust Wallet</div>
+          <div class="pdesc">Direct wallet (USDT/USDC/BTC/ETH)</div>
         </div>
       </div>
 
@@ -90,8 +82,17 @@
   <script>
     const API_BASE = "__BASE_URL__";
     const INITIAL_PAYMENT_ID = "__PAYMENT_ID__";
-    let selectedProvider = "stripe";
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialFiatCurrency = (urlParams.get("currency") || "USD").toUpperCase();
+    let selectedProvider = "__PROVIDER__";
+    if (!selectedProvider || selectedProvider === "__PROVIDER__" || (selectedProvider !== "metamask" && selectedProvider !== "trustwallet")) selectedProvider = "metamask";
     let paymentId = (INITIAL_PAYMENT_ID && INITIAL_PAYMENT_ID !== "__PAYMENT_ID__") ? INITIAL_PAYMENT_ID : null;
+
+    if (urlParams.get("amount")) document.getElementById("amount").value = urlParams.get("amount");
+    if (urlParams.get("crypto")) document.getElementById("crypto").value = urlParams.get("crypto").toUpperCase();
+    if (urlParams.get("email")) document.getElementById("email").value = urlParams.get("email");
+    const amountLabel = document.querySelector("label");
+    if (amountLabel) amountLabel.textContent = `Amount (${initialFiatCurrency})`;
 
     function selectProvider(p) {
       selectedProvider = p;
@@ -123,37 +124,19 @@
         const amount = parseFloat(document.getElementById("amount").value || "0");
         if (!(amount > 0)) throw new Error("Enter a valid amount.");
         const crypto = document.getElementById("crypto").value || "USDT";
-        const email = (document.getElementById("email").value || "").trim() || null;
-        const wallet = (document.getElementById("wallet").value || "").trim() || null;
-        if (selectedProvider !== "stripe" && !wallet) throw new Error("Enter the destination wallet address.");
+        const email = (document.getElementById("email2") || document.getElementById("email"))?.value?.trim() || null;
 
-        if (!paymentId) {
-          const r = await fetch(`${API_BASE}/api/public/payments`, {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-	            body: JSON.stringify({
-	              fiat_amount: amount,
-	              fiat_currency: "USD",
-	              crypto_ticker: crypto,
-	              provider_id: selectedProvider,
-	              customer_email: email,
-	              wallet_address: wallet
-	            })
-	          });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j?.detail || j?.error || "Failed to create payment");
-          paymentId = j.payment_id;
-        }
-
-        const r2 = await fetch(`${API_BASE}/api/public/payments/${encodeURIComponent(paymentId)}/start/${encodeURIComponent(selectedProvider)}`, {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({wallet_address: wallet, customer_email: email})
+        const params = new URLSearchParams({
+          amount: String(amount),
+          currency: initialFiatCurrency,
+          crypto: crypto
         });
-        const j2 = await r2.json();
-        if (!r2.ok) throw new Error(j2?.detail || j2?.error || "Failed to start provider checkout");
-        if (!j2.redirect_url) throw new Error("Provider did not return redirect_url");
-        window.location.href = j2.redirect_url;
+        if (email) params.set("email", email);
+
+        const target = (selectedProvider === "trustwallet")
+          ? `/checkout-trustwallet.html?${params.toString()}`
+          : `/checkout-metamask.html?${params.toString()}`;
+        window.location.href = target;
       } catch (e) {
         setMsg(String(e?.message || e), true);
       } finally {
@@ -161,6 +144,8 @@
         btn.textContent = "Continue →";
       }
     }
+
+    selectProvider(selectedProvider);
   </script>
 </body>
 </html>

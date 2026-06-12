@@ -77,10 +77,30 @@ GATEWAYS = {
         "env_var": "BLEAP_ENV",
         "desc": "Zero-fee USDC on-ramp (fast provider)",
     },
-    "metamask": {
-        "keys": ["METAMASK_API_KEY", "METAMASK_SECRET", "METAMASK_WEBHOOK_SECRET"],
-        "env_var": "METAMASK_ENV",
-        "desc": "Native MetaMask widget, 160+ countries, instant to wallet",
+    "kyrrex": {
+        "keys": ["KYRREX_API_KEY", "KYRREX_SECRET", "KYRREX_WEBHOOK_SECRET"],
+        "env_var": "KYRREX_ENV",
+        "desc": "Dubai-regulated fiat→crypto, AED native, 1.5% fee",
+    },
+    "banxa": {
+        "keys": ["BANXA_API_KEY", "BANXA_SECRET", "BANXA_SUBDOMAIN"],
+        "env_var": "BANXA_ENV",
+        "desc": "Global on/off-ramp, 180+ countries, AED & USD, 2% fee",
+    },
+    "changelly": {
+        "keys": ["CHANGELLY_API_KEY", "CHANGELLY_SECRET"],
+        "env_var": "CHANGELLY_ENV",
+        "desc": "Instant exchange, 500+ coins, card & bank, AED & USD, 1% fee",
+    },
+    "changenow": {
+        "keys": ["CHANGENOW_API_KEY", "CHANGENOW_SECRET"],
+        "env_var": "CHANGENOW_ENV",
+        "desc": "Non-custodial, 1000+ coins, zero-KYC up to $1K, AED & USD, 0.5% fee",
+    },
+    "coinify": {
+        "keys": ["COINIFY_API_KEY", "COINIFY_SECRET"],
+        "env_var": "COINIFY_ENV",
+        "desc": "Regulated EU processor, 100+ countries, AED & USD, 2.5% fee",
     },
 }
 

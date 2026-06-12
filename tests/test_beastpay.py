@@ -156,7 +156,7 @@ class TestCompanyLookup:
 
 
 # ─── Database helpers ─────────────────────────────────────────────────────────
-import database as db
+import database_legacy as db
 
 @pytest.fixture(autouse=True, scope="session")
 def init_test_db(tmp_path_factory):

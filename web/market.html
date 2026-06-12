@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeastPay — Crypto Marketplace</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#080808;color:#e0e0e0;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:16px}
+.header{text-align:center;padding:20px 0;border-bottom:1px solid #1a1a1a;margin-bottom:16px}
+.header h1{font-size:24px;background:linear-gradient(135deg,#f0b90b,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{color:#666;font-size:13px;margin-top:4px}
+.toolbar{display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;align-items:center}
+.toolbar select,.toolbar input{padding:8px 12px;background:#111;border:1px solid #2a2a2a;border-radius:8px;color:#fff;font-size:13px}
+.toolbar input{width:140px}
+.toolbar label{color:#888;font-size:12px}
+.badge-live{background:#0a2a0a;color:#4ade80;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600}
+.badge-count{background:#1a1a2a;color:#60a5fa;padding:4px 10px;border-radius:4px;font-size:11px}
+table{width:100%;border-collapse:collapse;background:#0d0d0d;border-radius:12px;overflow:hidden;border:1px solid #1a1a1a}
+th{background:#111;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:12px 10px;text-align:left;border-bottom:1px solid #1a1a1a}
+td{padding:12px 10px;border-bottom:1px solid #111;font-size:13px}
+tr:hover{background:#111}
+tr.selected{background:#1a1800;border-left:3px solid #f0b90b}
+.crypto-icon{font-size:18px;margin-right:6px}
+.price{font-weight:700;color:#f0b90b;font-size:15px}
+.seller-name{color:#ccc;font-weight:500}
+.trades{color:#888;font-size:11px}
+.completion{font-size:11px;font-weight:600}
+.completion.good{color:#4ade80}
+.completion.warn{color:#f0b90b}
+.completion.bad{color:#f87171}
+.payments{display:flex;gap:3px;flex-wrap:wrap}
+.pay-badge{padding:2px 6px;border-radius:3px;font-size:9px;background:#1a2a3a;color:#60a5fa;white-space:nowrap}
+.available{color:#4ade80;font-weight:600}
+.radio-col{width:40px;text-align:center}
+.radio-col input{accent-color:#f0b90b;width:18px;height:18px;cursor:pointer}
+.sidebar{position:fixed;right:0;top:0;width:360px;height:100vh;background:#0d0d0d;border-left:1px solid #1a1a1a;padding:20px;overflow-y:auto;z-index:100;display:none}
+.sidebar.active{display:block}
+.sidebar h3{color:#f0b90b;margin-bottom:16px;font-size:18px}
+.sidebar .close{float:right;background:none;border:none;color:#888;font-size:20px;cursor:pointer}
+.summary-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid#1a1a1a;font-size:14px}
+.summary-row .lbl{color:#888}
+.summary-row .val{font-weight:600}
+.total-receive{font-size:28px;font-weight:800;color:#4ade80;text-align:center;padding:16px 0}
+.card-input{width:100%;padding:12px;background:#111;border:1px solid#2a2a2a;border-radius:8px;color:#fff;font-size:14px;margin:8px 0}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;text-align:center;margin:8px 0}
+.btn-buy{background:linear-gradient(135deg,#f0b90b,#f7931a);color:#000}
+.btn-buy:disabled{opacity:.3;cursor:not-allowed}
+.btn-outline{background:transparent;border:2px solid#f0b90b;color:#f0b90b}
+.done-box{text-align:center;padding:30px}
+.done-box .big{font-size:48px}
+.done-box h2{color:#4ade80;margin:12px 0}
+.card-select{background:#111;border:1px solid#2a2a2a;border-radius:10px;padding:16px;margin:12px 0}
+.card-select select{width:100%;padding:10px;background:#0a0a0a;border:1px solid#333;border-radius:6px;color:#fff;font-size:14px;margin:8px 0}
+@media(max-width:768px){.sidebar{width:100%}table{font-size:11px}td,th{padding:8px 6px}}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>⚡ BeastPay Crypto Market</h1>
+<p>Live P2P sellers · AED → Crypto · No KYC · Binance P2P</p>
+</div>
+
+<div class="toolbar">
+<label>Filter:</label>
+<select id="cryptoFilter" onchange="filterTable()">
+<option value="all">All Cryptos</option>
+<option>USDT</option><option>USDC</option><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option>
+</select>
+<select id="payFilter" onchange="filterTable()">
+<option value="all">All Payments</option>
+<option>BANK</option><option>ADIB</option><option>ADCB</option><option>EmiratesNBD</option><option>Aani</option><option>CashDeposit</option>
+</select>
+<label>AED Amount:</label>
+<input type="number" id="aedAmount" value="1000" min="50" step="100" onchange="updateAll()">
+<span class="badge-live">● LIVE</span>
+<span class="badge-count" id="sellerCount">0 sellers</span>
+<button onclick="refreshMarket()" style="margin-left:auto;background:#1a2a1a;color:#4ade80;border:1px solid#2a3a2a;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px">🔄 Refresh</button>
+</div>
+
+<table id="sellerTable">
+<thead>
+<tr><th class="radio-col">✓</th><th>Crypto</th><th>Price (AED)</th><th>Seller</th><th>Available</th><th>You Get</th><th>Trades</th><th>Payments</th><th></th></tr>
+</thead>
+<tbody id="sellerBody">
+<tr><td colspan="9" style="text-align:center;padding:40px;color:#888">Loading live sellers...</td></tr>
+</tbody>
+</table>
+
+<!-- Sidebar Checkout -->
+<div class="sidebar" id="sidebar">
+<button class="close" onclick="closeSidebar()">✕</button>
+<h3>💳 Checkout</h3>
+<div id="sidebarContent"></div>
+</div>
+</div>
+
+<script>
+let allSellers=[], selectedSeller=null, paymentId=null;
+
+async function refreshMarket(){
+document.getElementById('sellerBody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px"><div style="width:30px;height:30px;border:3px solid #222;border-top:3px solid #f0b90b;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px"></div>Scanning Binance P2P...</td></tr>';
+
+try{
+const cryptos=['USDT','USDC','BTC','ETH','SOL','BNB'];
+allSellers=[];
+for(const crypto of cryptos){
+const r=await fetch(`/api/p2p/offers?fiat=AED&crypto=${crypto}&limit=5`);
+const d=await r.json();
+for(const o of d.offers||[]){
+allSellers.push({...o, crypto});
+}
+}
+allSellers.sort((a,b)=>a.price-b.price);
+document.getElementById('sellerCount').textContent=allSellers.length+' sellers';
+renderTable();
+}catch(e){
+document.getElementById('sellerBody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px;color:#f87171">Failed to load. Check connection.</td></tr>';
+}
+}
+
+function renderTable(){
+const filter=document.getElementById('cryptoFilter').value;
+const payFilter=document.getElementById('payFilter').value;
+const amount=parseFloat(document.getElementById('aedAmount').value)||1000;
+
+let filtered=allSellers.filter(s=>{
+if(filter!=='all'&&s.crypto!==filter)return false;
+if(payFilter!=='all'&&!(s.payments||[]).some(p=>p.toLowerCase().includes(payFilter.toLowerCase())))return false;
+return s.min_aed<=amount&&s.max_aed>=amount;
+});
+
+const body=document.getElementById('sellerBody');
+if(!filtered.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#888">No sellers match your filters. Try different amount or crypto.</td></tr>';return;}
+
+body.innerHTML=filtered.map((s,i)=>{
+const cryptoAmt=(amount/s.price).toFixed(s.crypto==='BTC'?8:s.crypto==='ETH'?6:2);
+const comp=s.completion||0;
+const compClass=comp>=0.95?'good':comp>=0.8?'warn':'bad';
+const icon={'USDT':'💵','USDC':'💲','BTC':'₿','ETH':'⟠','SOL':'◎','BNB':'🟡'}[s.crypto]||'🪙';
+const isSel=selectedSeller&&selectedSeller.seller===s.seller&&selectedSeller.price===s.price;
+return`<tr class="${isSel?'selected':''}" onclick="selectRow(${i},'${s.seller}',${s.price})">
+<td class="radio-col"><input type="radio" name="seller" ${isSel?'checked':''}></td>
+<td><span style="font-size:16px">${icon}</span> <strong>${s.crypto}</strong></td>
+<td class="price">${s.price.toLocaleString()} AED</td>
+<td><span class="seller-name">${s.seller}</span><br><span class="trades">${s.trades||0} trades</span></td>
+<td class="available">${s.available.toLocaleString()} ${s.crypto}</td>
+<td style="color:#4ade80;font-weight:600">${cryptoAmt} ${s.crypto}</td>
+<td><span class="completion ${compClass}">${(comp*100).toFixed(0)}%</span></td>
+<td><div class="payments">${(s.payments||['BANK']).slice(0,3).map(p=>`<span class="pay-badge">${p}</span>`).join('')}</div></td>
+</tr>`;
+}).join('');
+
+updateAll();
+}
+
+function selectRow(index,seller,price){
+document.querySelectorAll('tr').forEach(r=>r.classList.remove('selected'));
+const rows=document.querySelectorAll('#sellerBody tr');
+rows[index].classList.add('selected');
+rows[index].querySelector('input[type=radio]').checked=true;
+selectedSeller=allSellers.find(s=>s.seller===seller&&s.price===price);
+openSidebar();
+}
+
+function openSidebar(){
+if(!selectedSeller)return;
+const amount=parseFloat(document.getElementById('aedAmount').value)||1000;
+const cryptoAmt=(amount/selectedSeller.price).toFixed(selectedSeller.crypto==='BTC'?8:selectedSeller.crypto==='ETH'?6:2);
+const wallet=localStorage.getItem('beastpay_wallet')||'7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7';
+
+document.getElementById('sidebar').classList.add('active');
+document.getElementById('sidebarContent').innerHTML=`
+<div style="background:#111;border-radius:10px;padding:16px;margin-bottom:12px">
+<div class="summary-row"><span class="lbl">Crypto</span><span class="val" style="font-size:20px">${selectedSeller.crypto}</span></div>
+<div class="summary-row"><span class="lbl">Seller</span><span class="val">${selectedSeller.seller} (${(selectedSeller.completion*100).toFixed(0)}% complete)</span></div>
+<div class="summary-row"><span class="lbl">Rate</span><span class="val" style="color:#f0b90b">${selectedSeller.price.toLocaleString()} AED</span></div>
+<div class="summary-row"><span class="lbl">Payment</span><span class="val">${(selectedSeller.payments||['BANK']).join(', ')}</span></div>
+</div>
+
+<div class="summary-row"><span class="lbl">You Pay</span><span class="val">${amount.toLocaleString()} AED</span></div>
+<div class="total-receive">${cryptoAmt} ${selectedSeller.crypto}</div>
+<div class="summary-row"><span class="lbl">You Receive</span><span class="val" style="color:#4ade80">≈ $${(cryptoAmt*1).toFixed(2)} USD</span></div>
+
+<div class="card-select">
+<label style="color:#888;font-size:12px">💳 Payment Card</label>
+<select id="savedCard">
+<option>💳 **** 4242 — Business Debit</option>
+<option>💳 **** 5555 — Personal Credit</option>
+<option>🏦 Bank Transfer (manual)</option>
+</select>
+</div>
+
+<div class="card-select">
+<label style="color:#888;font-size:12px">📤 Wallet Address</label>
+<input type="text" class="card-input" id="walletAddr" value="${wallet}" onchange="localStorage.setItem('beastpay_wallet',this.value)">
+</div>
+
+<button class="btn btn-buy" onclick="executeBuy()">🔒 Buy ${cryptoAmt} ${selectedSeller.crypto} — ${amount} AED</button>
+
+<div id="buyResult"></div>
+`;
+}
+
+function closeSidebar(){document.getElementById('sidebar').classList.remove('active');}
+
+async function executeBuy(){
+if(!selectedSeller)return;
+const amount=parseFloat(document.getElementById('aedAmount').value)||1000;
+const wallet=document.getElementById('walletAddr')?.value?.trim();
+const card=document.getElementById('savedCard')?.value||'Bank Transfer';
+
+if(!wallet){alert('Enter wallet address');return;}
+
+const btn=document.querySelector('.btn-buy');
+btn.disabled=true;
+btn.textContent='Processing...';
+
+try{
+const params=new URLSearchParams({
+fiat:'AED',crypto:selectedSeller.crypto,amount,
+wallet,offer_price:selectedSeller.price,
+offer_merchant:selectedSeller.seller,
+offer_exchange:'binance_p2p'
+});
+const r=await fetch('/api/p2p/pay?'+params,{method:'POST'});
+const payment=await r.json();
+if(payment.error){alert(payment.error);btn.disabled=false;btn.textContent='Try Again';return;}
+
+paymentId=payment.payment_id;
+const cryptoAmt=payment.crypto_amount;
+
+document.getElementById('buyResult').innerHTML=`
+<div style="background:#0a1a0a;border:1px solid#1a3a1a;border-radius:10px;padding:16px;margin-top:12px">
+<p style="color:#4ade80;font-weight:700">✅ Order Created</p>
+<p style="color:#888;font-size:12px">ID: ${paymentId}</p>
+
+<div style="margin:12px 0;padding:12px;background:#000;border-radius:8px">
+<p style="margin:4px 0">1. Open Binance → <strong>${selectedSeller.seller}</strong></p>
+<p style="margin:4px 0">2. Send <strong>${amount} AED</strong> via ${(selectedSeller.payments||['BANK'])[0]}</p>
+<p style="margin:4px 0">3. <strong>${cryptoAmt} ${selectedSeller.crypto}</strong> → your wallet</p>
+</div>
+
+<a href="${selectedSeller.url}" target="_blank" class="btn btn-outline" style="text-decoration:none;display:block">
+🔗 Open ${selectedSeller.seller} on Binance →
+</a>
+
+<button class="btn btn-buy" style="margin-top:8px;background:#4ade80" onclick="confirmReceipt()">
+✅ I Received My Crypto — Confirm
+</button>
+</div>`;
+}catch(e){
+btn.disabled=false;
+btn.textContent='Error — Try Again';
+}
+}
+
+async function confirmReceipt(){
+const r=await fetch(`/api/p2p/pay/${paymentId}/confirm?tx_hash=done`,{method:'POST'});
+const d=await r.json();
+document.getElementById('buyResult').innerHTML=`
+<div class="done-box">
+<div class="big">🎉</div>
+<h2>Payment Complete!</h2>
+<p style="font-size:20px;color:#4ade80;margin:8px 0">+${d.crypto_amount} ${d.crypto_currency}</p>
+<p style="color:#888">Delivered to your wallet</p>
+<p style="color:#666;font-size:11px;margin-top:8px">ID: ${paymentId}</p>
+</div>`;
+closeSidebar();
+}
+
+function filterTable(){renderTable();}
+function updateAll(){renderTable();}
+
+// Init
+refreshMarket();
+setInterval(refreshMarket,30000);
+</script>
+</body>
+</html>

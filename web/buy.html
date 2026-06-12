@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeastPay — Buy Crypto Instantly</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080808;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+.tabs{display:flex;gap:4px;padding:16px;max-width:800px;margin:0 auto}
+.tab{padding:10px 20px;background:#111;border:1px solid #222;border-radius:8px 8px 0 0;color:#888;cursor:pointer;font-weight:600;font-size:14px}
+.tab.active{background:#1a1a1a;color:#f0b90b;border-bottom:2px solid #f0b90b}
+.container{max-width:800px;margin:0 auto;padding:0 16px}
+.widget-container{width:100%;min-height:600px;border:none;border-radius:0 0 12px 12px;overflow:hidden}
+iframe{width:100%;height:650px;border:none}
+h1{text-align:center;padding:20px;font-size:22px;background:linear-gradient(135deg,#f0b90b,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+<h1>⚡ Buy Crypto Instantly</h1>
+
+<div class="tabs">
+<div class="tab active" onclick="switchTab('moonpay')">💳 MoonPay Card</div>
+<div class="tab" onclick="switchTab('p2p')">🏦 P2P Market</div>
+</div>
+
+<div class="container">
+<div id="moonpayTab" class="widget-container">
+<iframe id="moonpayFrame" src="https://buy.moonpay.com?apiKey=pk_test_XZQz1d3oZjEJNja7wxiC4cinjjyQpO&currencyCode=USDC&walletAddress=7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7&baseCurrencyAmount=100&baseCurrencyCode=AED&theme=dark&colorCode=%23f0b90b" allow="payment"></iframe>
+</div>
+<div id="p2pTab" style="display:none">
+<iframe src="/market" style="width:100%;height:800px;border:none"></iframe>
+</div>
+</div>
+
+<script>
+function switchTab(tab){
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('.widget-container, #p2pTab').forEach(d=>d.style.display='none');
+if(tab==='moonpay'){document.querySelectorAll('.tab')[0].classList.add('active');document.getElementById('moonpayTab').style.display='block'}
+else{document.querySelectorAll('.tab')[1].classList.add('active');document.getElementById('p2pTab').style.display='block'}
+}
+</script>
+</body>
+</html>

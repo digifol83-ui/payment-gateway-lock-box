@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unified Fiat-to-Crypto Checkout</title>
+    <script src="/static/wallet-connector.js"></script>
     <style>
         * {
             margin: 0;
@@ -188,6 +189,17 @@
             </div>
 
             <div class="content">
+                <!-- Wallet Display -->
+                <div style="background: #f0f7ff; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+                    <div style="font-size: 12px; color: #666; font-weight: 500; margin-bottom: 8px;">💼 Connected Wallet</div>
+                    <div style="font-family: 'Monaco', 'Courier New', monospace; color: #667eea; font-weight: 600; word-break: break-all; margin-bottom: 10px;" id="connectedWallet">
+                        0x0582b74D10c853B52335542036e6CEA9B780849A
+                    </div>
+                    <a href="#" onclick="event.preventDefault(); WalletConnector.clear(); location.reload();" style="color: #667eea; font-size: 12px; text-decoration: none;">
+                        Change Wallet →
+                    </a>
+                </div>
+
                 <!-- Amount & Currency Selection -->
                 <div class="form-row">
                     <div class="form-group">
@@ -265,6 +277,17 @@
 
         let selectedProvider = null;
 
+        // Auto-select provider if specified
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoSelectProvider = "__PROVIDER__" !== "__PROVIDER__" ? "__PROVIDER__" : null;
+        const autoSelect = "__AUTO_SELECT__" === "true";
+
+        // Pre-fill form from URL parameters
+        if (urlParams.get('amount')) amountInput.value = urlParams.get('amount');
+        if (urlParams.get('currency')) fiatSelect.value = urlParams.get('currency');
+        if (urlParams.get('crypto')) cryptoSelect.value = urlParams.get('crypto');
+        if (urlParams.get('email')) emailInput.value = urlParams.get('email');
+
         amountInput.addEventListener('change', updateProviders);
         fiatSelect.addEventListener('change', updateProviders);
         checkoutButton.addEventListener('click', checkout);
@@ -274,23 +297,24 @@
             if (!amount || amount < 1) return;
 
             const providers = [
-                { id: 'stripe', name: '💳 Stripe', fee: 2.9, settlement: 'Instant', status: '🟢 LIVE', types: 'Card Payments' },
-                { id: 'transak', name: '🚀 Transak', fee: 1.0, settlement: '5-10 min', status: '🟢 LIVE', types: 'Fiat→Crypto (USD/AED)' },
-                { id: 'bleap', name: 'Bleap', fee: 0, settlement: '3 min', status: '🟡 Sandbox' },
-                { id: 'metamask', name: 'MetaMask', fee: 2.5, settlement: '5-10 min', status: '🟢 Live' },
+                { id: 'metamask',    name: '🦊 MetaMask',     fee: 0, settlement: 'On-chain confirm', status: '🟢 LIVE', types: 'Direct Wallet (USDT / USDC / ETH / BNB)' },
+                { id: 'trustwallet', name: '🛡️ Trust Wallet', fee: 0, settlement: 'On-chain confirm', status: '🟢 LIVE', types: 'Direct Wallet (USDT / USDC / BTC / ETH)' },
             ];
 
-            providerGrid.innerHTML = providers.map(p => `
-                <div class="provider-card" onclick="selectProvider('${p.id}', this)">
-                    <div class="provider-name">${p.name}</div>
-                    <div class="provider-details">
-                        ${p.types ? `<div><strong>${p.types}</strong></div>` : ''}
-                        <div>Fee: ${p.fee}%</div>
-                        <div>Settlement: ${p.settlement}</div>
-                        <div>${p.status}</div>
+            providerGrid.innerHTML = providers.map(p => {
+                const isComingSoon = p.status.includes('🔜');
+                return `
+                    <div class="provider-card" data-provider="${p.id}" onclick="selectProvider('${p.id}', this)" ${isComingSoon ? 'style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+                        <div class="provider-name">${p.name}</div>
+                        <div class="provider-details">
+                            ${p.types ? `<div><strong>${p.types}</strong></div>` : ''}
+                            <div>Fee: ${p.fee}%</div>
+                            <div>Settlement: ${p.settlement}</div>
+                            <div>${p.status}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
 
             updateSummary(amount);
             summaryBox.style.display = 'block';
@@ -325,13 +349,16 @@
             const crypto = cryptoSelect.value;
             const email = emailInput.value;
 
-            // Route to appropriate provider checkout
-            if (selectedProvider === 'stripe') {
-                window.location.href = `/checkout/stripe?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
-            } else if (selectedProvider === 'transak') {
-                window.location.href = `/buy?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
+            const providerPages = {
+                'metamask':    `/checkout-metamask.html?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`,
+                'trustwallet': `/checkout-trustwallet.html?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`,
+            };
+
+            const url = providerPages[selectedProvider];
+            if (url) {
+                window.location.href = url;
             } else {
-                window.location.href = `/checkout/${selectedProvider}?amount=${amount}&currency=${currency}&email=${email}&crypto=${crypto}`;
+                alert('Provider not yet configured');
             }
         }
 
@@ -339,7 +366,24 @@
             checkoutButton.disabled = !emailInput.value || !selectedProvider;
         });
 
+        // Initialize wallet display
+        const wallet = WalletConnector.getWallet();
+        document.getElementById('connectedWallet').textContent = `${wallet.name} (${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)})`;
+
         updateProviders();
+
+        // Auto-select provider after rendering if specified
+        if (autoSelect && autoSelectProvider) {
+            setTimeout(() => {
+                const providerCard = document.querySelector(`.provider-card[data-provider="${autoSelectProvider}"]`) ||
+                                    Array.from(document.querySelectorAll('.provider-card')).find(el =>
+                                      el.textContent.toLowerCase().includes(autoSelectProvider.toLowerCase())
+                                    );
+                if (providerCard) {
+                    selectProvider(autoSelectProvider, providerCard);
+                }
+            }, 100);
+        }
     </script>
 </body>
 </html>

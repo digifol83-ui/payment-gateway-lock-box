@@ -82,6 +82,40 @@ async def init_db():
     """)
 
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS otp_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purpose TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        consumed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS otp_bearers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purpose TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        bearer_hash TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        consumed_at INTEGER
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS guardarian_redirects (
+        payment_id TEXT PRIMARY KEY,
+        target_url TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+    )
+    """)
+
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS payments (
         id TEXT PRIMARY KEY,
         link_id TEXT,
@@ -101,11 +135,23 @@ async def init_db():
         fee_amount REAL,
         description TEXT,
         webhook_data TEXT,
+        tx_hash TEXT,
+        chain TEXT,
         created_at TEXT,
         updated_at TEXT,
         FOREIGN KEY(merchant_id) REFERENCES merchants(id)
     )
     """)
+
+    # Idempotent column adds for existing DBs (SQLite ignores OperationalError on duplicate)
+    for col_sql in (
+        "ALTER TABLE payments ADD COLUMN tx_hash TEXT",
+        "ALTER TABLE payments ADD COLUMN chain TEXT",
+    ):
+        try:
+            conn.execute(col_sql)
+        except sqlite3.OperationalError:
+            pass
 
     conn.commit()
     conn.close()

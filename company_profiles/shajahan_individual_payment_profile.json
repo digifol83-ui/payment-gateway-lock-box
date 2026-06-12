@@ -1,0 +1,37 @@
+{
+  "profile_id": "shajahan_individual_payment_profile",
+  "last_updated": "2026-05-21",
+  "account_type": "individual_or_freelancer",
+  "person": {
+    "full_name": "SHAJAHAN POTHANCHERRY ALAVI POTHANCHERRY",
+    "nationality": "India",
+    "documents_on_disk": {
+      "passport": "/home/kali/payment-gateway/uploads/SHAJAHAN_passport_S0124841.jpeg",
+      "emirates_id_front": "/home/kali/payment-gateway/uploads/SHAJAHAN_EID_front_v2.png",
+      "emirates_id_back": "/home/kali/payment-gateway/uploads/SHAJAHAN_EID_back.png",
+      "emirates_id_combined": "/home/kali/payment-gateway/uploads/Emirates_ID_Combined.pdf"
+    }
+  },
+  "product": {
+    "name": "Beast AI / BeastBrain",
+    "description": "AI-powered content creation and productivity assistant selling small digital AI credits and subscriptions.",
+    "typical_ticket_usd": "5-20",
+    "review_url": "https://brain-api-w7wsg6vria-uc.a.run.app"
+  },
+  "recommended_provider_order": [
+    "ziina_personal_payment_link",
+    "ziina_business_or_api",
+    "mamo_freelancer_or_business"
+  ],
+  "backend_status": {
+    "ziina_provider_code": "implemented",
+    "production_token_status": "not_available",
+    "current_env": "sandbox",
+    "real_card_payments_live": false
+  },
+  "compliance_notes": [
+    "Use the individual route only under Shajahan's own verified name unless the provider approves a business profile.",
+    "Do not represent an individual account as SICHER MAYOR INVESTMENTS L.L.C unless the provider approves that legal entity on the account.",
+    "Provider-hosted checkout/payment links must handle card data; BeastBrain must not store raw card number, expiry, or CVV."
+  ]
+}

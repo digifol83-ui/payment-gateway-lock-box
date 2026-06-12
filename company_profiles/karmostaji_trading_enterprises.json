@@ -1,0 +1,29 @@
+{
+  "client_id": "karmostaji_trading_enterprises",
+  "source_document": "/mnt/c/Users/shahe/Downloads/SecureCertificate201803.aspx.pdf",
+  "source_document_type": "Dubai Commercial License",
+  "company_name": "AL KARMOSTAJI TRADING ENTERPRISES",
+  "requested_client_label": "KARMOSTAJI TRADING LLC",
+  "legal_type": "Limited Liability Company (LLC)",
+  "license_no": "200100",
+  "main_license_no": "200100",
+  "register_no": "1387701",
+  "dcci_no": "7447",
+  "duns_no": "534472717",
+  "issue_date": "1981-01-14",
+  "expiry_date": "2027-01-13",
+  "activity": "General Trading",
+  "existing_license_email": "karmostaji@hotmail.com",
+  "recommended_business_email": "compliance@karmostaji.com",
+  "alternate_business_emails": [
+    "accounts@karmostaji.com",
+    "admin@karmostaji.com",
+    "kyb@karmostaji.com"
+  ],
+  "phone": "+971-4-2260284",
+  "mobile": "+971-50-6555797",
+  "fax": "+971-4-2291932",
+  "po_box": "4139",
+  "parcel_id": "115-165",
+  "notes": "The licence itself lists a Hotmail address. For KYB/provider onboarding, prefer a domain mailbox such as compliance@karmostaji.com if the domain is controlled by the client."
+}

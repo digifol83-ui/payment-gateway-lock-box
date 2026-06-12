@@ -1,0 +1,42 @@
+{
+  "customer_id": "cust_mohammed_ferrin_001",
+  "kyc_status": "verified",
+  "kyc_level": "L2_full_kyc",
+  "identity": {
+    "full_name": "MOHAMMED FERRIN",
+    "first_name": "Mohammed",
+    "last_name": "Ferrin",
+    "email": "fazzajasmal@gmail.com",
+    "phone": "+971585901097",
+    "nationality": "ARE",
+    "country": "AE",
+    "city": "Dubai",
+    "id_type": "emirates_id",
+    "emirates_id_status": "verified",
+    "emirates_id_verified_at": "2026-06-01T00:00:00Z",
+    "date_of_birth": ""
+  },
+  "wallets": {
+    "solana": "7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7",
+    "default": "solana",
+    "default_address": "7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7"
+  },
+  "payment_defaults": {
+    "fiat_currency": "AED",
+    "crypto_currency": "USDC",
+    "network": "solana",
+    "usdc_contract": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "preferred_provider": "transak"
+  },
+  "limits": {
+    "daily_limit_aed": 36725,
+    "monthly_limit_aed": 367250,
+    "per_transaction_min_aed": 110,
+    "per_transaction_max_aed": 36725,
+    "kyc_tier": "L2",
+    "kyc_label": "Full KYC — Emirates ID verified"
+  },
+  "created_at": "2026-06-04T00:00:00Z",
+  "updated_at": "2026-06-04T00:00:00Z",
+  "notes": "Verified Emirates ID holder. Full KYC L2. Default settlement: USDC on Solana."
+}

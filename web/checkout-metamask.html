@@ -292,10 +292,21 @@
                     💰 Proceed to MetaMask
                 </button>
 
+                <!-- Send Instructions (revealed after create) -->
+                <div id="sendBox" style="display:none; margin-top:18px; padding:16px; border:1px solid #e0e0e0; border-radius:8px; background:#f8f9ff;">
+                    <strong>Send to this address:</strong>
+                    <div class="wallet-address" id="sendAddress" style="margin:6px 0 12px 0;"></div>
+                    <strong>Amount:</strong> <span id="sendAmount"></span><br/>
+                    <strong>Reference:</strong> <span id="sendRef" style="font-family:monospace;font-size:12px;"></span>
+                    <div style="margin-top:14px;">
+                        <a id="openMM" href="#" target="_blank" style="display:inline-block;padding:10px 16px;background:#f6851b;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">🦊 Open MetaMask</a>
+                    </div>
+                </div>
+
                 <!-- Info -->
                 <div class="info-box">
                     <strong>🔒 Direct to Wallet</strong>
-                    You'll complete this payment directly in MetaMask. No intermediary needed.
+                    You'll complete this payment directly in MetaMask. BeastPay never sees your seed phrase or private keys.
                 </div>
             </div>
         </div>
@@ -344,6 +355,27 @@
             document.getElementById('receiveAmount').textContent = `≈ ${estimatedCrypto.toFixed(6)} ${cryptoSelect.value}`;
         }
 
+        // MetaMask mobile deep-link templates (https://docs.metamask.io/wallet/how-to/use-mobile/)
+        const MM_TOKENS = {
+            'USDT': { contract: '0x55d398326f99059fF775485246999027B3197955', chain: 56, decimals: 18 }, // BSC USDT
+            'USDC': { contract: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', chain: 1,  decimals: 6  }, // ETH USDC
+            'ETH':  { native: true, chain: 1,  decimals: 18 },
+            'BTC':  { native: true, chain: 0,  decimals: 8  }
+        };
+
+        function buildMetaMaskLink(asset, address, amount) {
+            const t = MM_TOKENS[asset] || MM_TOKENS['USDT'];
+            if (t.native && t.chain) {
+                const wei = BigInt(Math.round(amount * 10 ** Math.min(t.decimals, 9))) * (10n ** BigInt(t.decimals - Math.min(t.decimals, 9)));
+                return `https://metamask.app.link/send/${address}@${t.chain}?value=${wei.toString()}`;
+            }
+            if (t.contract) {
+                const units = BigInt(Math.round(amount * 10 ** Math.min(t.decimals, 9))) * (10n ** BigInt(t.decimals - Math.min(t.decimals, 9)));
+                return `https://metamask.app.link/send/${t.contract}@${t.chain}/transfer?address=${address}&uint256=${units.toString()}`;
+            }
+            return `https://metamask.app.link/`;
+        }
+
         checkoutButton.addEventListener('click', async () => {
             if (!emailInput.value) {
                 alert('Please enter your email address');
@@ -360,23 +392,26 @@
 
             try {
                 checkoutButton.disabled = true;
-                checkoutButton.textContent = 'Processing...';
+                checkoutButton.textContent = 'Creating payment…';
 
                 const response = await fetch('/api/payments/metamask/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
-
                 const data = await response.json();
-
-                if (data.checkout_url) {
-                    window.location.href = data.checkout_url;
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
-                    checkoutButton.disabled = false;
-                    checkoutButton.textContent = '💰 Proceed to MetaMask';
+                if (!response.ok || !data.payment_id) {
+                    throw new Error(data.detail || data.error || 'Create failed');
                 }
+
+                const sendBox = document.getElementById('sendBox');
+                document.getElementById('sendAddress').textContent = data.wallet_address;
+                document.getElementById('sendAmount').textContent = `${payload.amount_fiat} ${payload.fiat_currency} (≈ in ${payload.crypto_currency})`;
+                document.getElementById('sendRef').textContent = data.payment_id;
+                document.getElementById('openMM').href = buildMetaMaskLink(payload.crypto_currency, data.wallet_address, payload.amount_fiat);
+                sendBox.style.display = 'block';
+                checkoutButton.textContent = '✅ Payment ready — open MetaMask above';
+                checkoutButton.style.background = '#16a34a';
             } catch (error) {
                 console.error('Checkout error:', error);
                 alert('Checkout failed: ' + error.message);

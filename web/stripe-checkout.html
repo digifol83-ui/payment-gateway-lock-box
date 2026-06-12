@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>BeastPay Checkout</title></head>
+<body style="margin:0;background:#000">
+<iframe src="https://checkout.stripe.com/c/pay/cs_live_a1UH148Nb5EkPdnjDafRVx356hePT9SGpzrcCICN8mTUjqKFenGOE3h4mY#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRRVDZqRFVxUkhxZGN8SVVuVWJNYUtQNzVPZmRccGpBdk5DMDVcfzZCVH92T2tscn9nbGZLUW9JZFF9RmNQUktyZD1WazJxXDF1SDFHYlcwdXc1MW1vak01NXN2bkB9VEpqJyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNjY2NjYycpJ2lkfGpwcVF8dWAnPyd2bGtiaWBabHFgaCcpJ2BrZGdpYFVpZGZgbWppYWB3dic%2FcXdwYHgl" style="width:100%;height:100vh;border:none" allow="payment"></iframe>
+<script>
+// Auto-open in new tab if iframe blocked
+window.onload = function(){
+  setTimeout(function(){
+    if(document.querySelector('iframe').contentDocument?.body?.innerHTML?.length < 100){
+      window.open('https://checkout.stripe.com/c/pay/cs_live_a1UH148Nb5EkPdnjDafRVx356hePT9SGpzrcCICN8mTUjqKFenGOE3h4mY#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWmlsc2BaMDRRVDZqRFVxUkhxZGN8SVVuVWJNYUtQNzVPZmRccGpBdk5DMDVcfzZCVH92T2tscn9nbGZLUW9JZFF9RmNQUktyZD1WazJxXDF1SDFHYlcwdXc1MW1vak01NXN2bkB9VEpqJyknY3dqaFZgd3Ngdyc%2FcXdwYCknZ2RmbmJ3anBrYUZqaWp3Jz8nJmNjY2NjYycpJ2lkfGpwcVF8dWAnPyd2bGtiaWBabHFgaCcpJ2BrZGdpYFVpZGZgbWppYWB3dic%2FcXdwYHgl', '_blank');
+    }
+  }, 2000);
+};
+</script>
+</body>
+</html>

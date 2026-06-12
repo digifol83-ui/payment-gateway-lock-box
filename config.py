@@ -25,29 +25,61 @@ class Settings(BaseSettings):
     TRANSAK_SECRET: str = ""
     TRANSAK_ACCESS_TOKEN: str = ""
     TRANSAK_ENV: str = "PRODUCTION"
+    TRANSAK_EMAIL: str = ""
+    TRANSAK_BRAND_NAME: str = ""
+    TRANSAK_COMPANY_NAME: str = ""
+    TRANSAK_LOGO_URL: str = ""
+    TRANSAK_WEBSITE: str = ""
+    TRANSAK_THEME: str = "dark"
+    TRANSAK_SEND_CUSTOMER_EMAILS: bool = False
+
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_ENV: str = "test"
 
     MOONPAY_API_KEY: str = ""
     MOONPAY_SECRET: str = ""
+    MOONPAY_WEBHOOK_SECRET: str = ""
     MOONPAY_ENV: str = "sandbox"
 
     NOWPAYMENTS_API_KEY: str = ""
     NOWPAYMENTS_IPN_SECRET: str = ""
     NOWPAYMENTS_ENV: str = "sandbox"
 
-    STRIPE_SECRET_KEY: str = ""
-    STRIPE_PUBLISHABLE_KEY: str = ""
-    STRIPE_WEBHOOK_SECRET: str = ""
-    STRIPE_ENV: str = ""
-    STRIPE_STATUS: str = ""
-    # Telegram Payments "provider token" (named like Stripe, but issued by @BotFather)
-    STRIPE_PROVIDER_TOKEN: str = ""
+    # Telegram Payments provider token from @BotFather.
+    TELEGRAM_PAYMENT_PROVIDER_TOKEN: str = ""
 
     ZIINA_API_TOKEN: str = ""
     ZIINA_WEBHOOK_SECRET: str = ""
     ZIINA_ENV: str = "production"
 
+    PAYBIS_PARTNER_ID: str = ""
+    PAYBIS_HMAC_KEY: str = ""
+    PAYBIS_WEBHOOK_SECRET: str = ""
+    PAYBIS_ENV: str = "sandbox"
+
+    KYRREX_API_KEY: str = ""
+    KYRREX_SECRET: str = ""
+    KYRREX_WEBHOOK_SECRET: str = ""
+    KYRREX_ENV: str = "sandbox"
+
+    HUBPAY_API_KEY: str = ""
+    HUBPAY_SECRET: str = ""
+    HUBPAY_WEBHOOK_SECRET: str = ""
+    HUBPAY_ENV: str = "sandbox"
+
     GUARDARIAN_API_KEY: str = ""
     GUARDARIAN_ENV: str = "production"
+    GUARDARIAN_WEBHOOK_SECRET: str = ""
+    GUARDARIAN_OTP_RECIPIENT: str = "sichermayorfx@gmail.com"
+    GUARDARIAN_OTP_SECRET: str = ""
+
+    # SMTP for OTP delivery (optional — Telegram + logs are the fallback)
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
 
     COINREMITTER_API_KEY: str = ""
     COINREMITTER_API_PASSWORD: str = ""
@@ -83,6 +115,24 @@ class Settings(BaseSettings):
     METAMASK_WEBHOOK_SECRET: str = ""
     METAMASK_ENV: str = "production"
 
+    # Additional fiat-to-crypto gateways (AED & USD support)
+    BANXA_API_KEY: str = ""
+    BANXA_SECRET: str = ""
+    BANXA_SUBDOMAIN: str = ""
+    BANXA_ENV: str = "sandbox"
+
+    CHANGELLY_API_KEY: str = ""
+    CHANGELLY_SECRET: str = ""
+    CHANGELLY_ENV: str = "sandbox"
+
+    CHANGENOW_API_KEY: str = ""
+    CHANGENOW_SECRET: str = ""
+    CHANGENOW_ENV: str = "sandbox"
+
+    COINIFY_API_KEY: str = ""
+    COINIFY_SECRET: str = ""
+    COINIFY_ENV: str = "sandbox"
+
     # KYC thresholds
     KYC_FREE_LIMIT_USD: float = 100
     KYC_SUMSUB_LIMIT: float = 500
@@ -91,6 +141,7 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
     TELEGRAM_ENABLED: bool = False
+    TELEGRAM_WEBHOOK_SECRET: str = ""
     TG_NOTIFY_NEW_PAYMENT: bool = True
     TG_NOTIFY_COMPLETED: bool = True
     TG_NOTIFY_FAILED: bool = True
@@ -138,25 +189,48 @@ def validate_runtime_settings() -> None:
 TRANSAK_API_KEY = settings.TRANSAK_API_KEY
 TRANSAK_SECRET = settings.TRANSAK_SECRET
 TRANSAK_ENV = settings.TRANSAK_ENV
-TRANSAK_ACCESS_TOKEN = settings.TRANSAK_API_KEY  # Fallback for compatibility
+TRANSAK_ACCESS_TOKEN = settings.TRANSAK_ACCESS_TOKEN
+TRANSAK_EMAIL = settings.TRANSAK_EMAIL
+TRANSAK_BRAND_NAME = settings.TRANSAK_BRAND_NAME
+TRANSAK_COMPANY_NAME = settings.TRANSAK_COMPANY_NAME
+TRANSAK_LOGO_URL = settings.TRANSAK_LOGO_URL
+TRANSAK_WEBSITE = settings.TRANSAK_WEBSITE
+TRANSAK_THEME = settings.TRANSAK_THEME
+TRANSAK_SEND_CUSTOMER_EMAILS = settings.TRANSAK_SEND_CUSTOMER_EMAILS
+
+STRIPE_SECRET_KEY = getattr(settings, 'STRIPE_SECRET_KEY', '')
+STRIPE_WEBHOOK_SECRET = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+STRIPE_ENV = getattr(settings, 'STRIPE_ENV', 'test')
 
 MOONPAY_API_KEY = getattr(settings, 'MOONPAY_API_KEY', '')
 MOONPAY_SECRET = getattr(settings, 'MOONPAY_SECRET', '')
+MOONPAY_WEBHOOK_SECRET = getattr(settings, 'MOONPAY_WEBHOOK_SECRET', '')
 MOONPAY_ENV = getattr(settings, 'MOONPAY_ENV', 'sandbox')
 
 NOWPAYMENTS_API_KEY = getattr(settings, 'NOWPAYMENTS_API_KEY', '')
 NOWPAYMENTS_IPN_SECRET = getattr(settings, 'NOWPAYMENTS_IPN_SECRET', '')
 NOWPAYMENTS_ENV = getattr(settings, 'NOWPAYMENTS_ENV', 'sandbox')
 
-STRIPE_SECRET_KEY = settings.STRIPE_SECRET_KEY
-STRIPE_PUBLISHABLE_KEY = settings.STRIPE_PUBLISHABLE_KEY
-STRIPE_WEBHOOK_SECRET = settings.STRIPE_WEBHOOK_SECRET
-STRIPE_ENV = settings.STRIPE_ENV
-STRIPE_PROVIDER_TOKEN = getattr(settings, "STRIPE_PROVIDER_TOKEN", "")
+TELEGRAM_PAYMENT_PROVIDER_TOKEN = getattr(settings, "TELEGRAM_PAYMENT_PROVIDER_TOKEN", "")
 
 ZIINA_API_TOKEN = getattr(settings, 'ZIINA_API_TOKEN', '')
 ZIINA_WEBHOOK_SECRET = getattr(settings, 'ZIINA_WEBHOOK_SECRET', '')
 ZIINA_ENV = getattr(settings, 'ZIINA_ENV', 'production')
+
+PAYBIS_PARTNER_ID = getattr(settings, 'PAYBIS_PARTNER_ID', '')
+PAYBIS_HMAC_KEY = getattr(settings, 'PAYBIS_HMAC_KEY', '')
+PAYBIS_WEBHOOK_SECRET = getattr(settings, 'PAYBIS_WEBHOOK_SECRET', '')
+PAYBIS_ENV = getattr(settings, 'PAYBIS_ENV', 'sandbox')
+
+KYRREX_API_KEY = getattr(settings, 'KYRREX_API_KEY', '')
+KYRREX_SECRET = getattr(settings, 'KYRREX_SECRET', '')
+KYRREX_WEBHOOK_SECRET = getattr(settings, 'KYRREX_WEBHOOK_SECRET', '')
+KYRREX_ENV = getattr(settings, 'KYRREX_ENV', 'sandbox')
+
+HUBPAY_API_KEY = getattr(settings, 'HUBPAY_API_KEY', '')
+HUBPAY_SECRET = getattr(settings, 'HUBPAY_SECRET', '')
+HUBPAY_WEBHOOK_SECRET = getattr(settings, 'HUBPAY_WEBHOOK_SECRET', '')
+HUBPAY_ENV = getattr(settings, 'HUBPAY_ENV', 'sandbox')
 
 GUARDARIAN_API_KEY = getattr(settings, 'GUARDARIAN_API_KEY', '')
 GUARDARIAN_ENV = getattr(settings, 'GUARDARIAN_ENV', 'production')
@@ -195,6 +269,23 @@ METAMASK_SECRET = settings.METAMASK_SECRET
 METAMASK_WEBHOOK_SECRET = settings.METAMASK_WEBHOOK_SECRET
 METAMASK_ENV = settings.METAMASK_ENV
 
+BANXA_API_KEY = settings.BANXA_API_KEY
+BANXA_SECRET = settings.BANXA_SECRET
+BANXA_SUBDOMAIN = settings.BANXA_SUBDOMAIN
+BANXA_ENV = settings.BANXA_ENV
+
+CHANGELLY_API_KEY = settings.CHANGELLY_API_KEY
+CHANGELLY_SECRET = settings.CHANGELLY_SECRET
+CHANGELLY_ENV = settings.CHANGELLY_ENV
+
+CHANGENOW_API_KEY = settings.CHANGENOW_API_KEY
+CHANGENOW_SECRET = settings.CHANGENOW_SECRET
+CHANGENOW_ENV = settings.CHANGENOW_ENV
+
+COINIFY_API_KEY = settings.COINIFY_API_KEY
+COINIFY_SECRET = settings.COINIFY_SECRET
+COINIFY_ENV = settings.COINIFY_ENV
+
 # Other settings
 BASE_URL = settings.BASE_URL
 ADMIN_API_KEY = settings.ADMIN_API_KEY
@@ -210,6 +301,7 @@ KYC_SUMSUB_LIMIT = float(getattr(settings, 'KYC_SUMSUB_LIMIT', 500))
 TELEGRAM_BOT_TOKEN = settings.TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID = settings.TELEGRAM_CHAT_ID
 TELEGRAM_ENABLED = settings.TELEGRAM_ENABLED
+TELEGRAM_WEBHOOK_SECRET = settings.TELEGRAM_WEBHOOK_SECRET
 
 # Claude/Anthropic
 ANTHROPIC_API_KEY = settings.ANTHROPIC_API_KEY

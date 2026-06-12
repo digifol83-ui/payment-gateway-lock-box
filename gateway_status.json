@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-06-04T08:30:12.773659",
+  "providers": {
+    "transak": {
+      "name": "Transak",
+      "status": "LIVE",
+      "production": true,
+      "type": "fiat-to-crypto"
+    },
+    "ziina": {
+      "name": "Ziina",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-only"
+    },
+    "guardarian": {
+      "name": "Guardarian",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "kast": {
+      "name": "KAST Pay",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "moonpay": {
+      "name": "MoonPay",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "nowpayments": {
+      "name": "NOWPayments",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "crypto-only"
+    },
+    "coinremitter": {
+      "name": "CoinRemitter",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "crypto-only"
+    },
+    "plisio": {
+      "name": "Plisio",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "crypto-only"
+    },
+    "finchpay": {
+      "name": "FinchPay",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "charge": {
+      "name": "Charge",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "swapin": {
+      "name": "Swapin",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "bleap": {
+      "name": "Bleap",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "metamask": {
+      "name": "MetaMask",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "paybis": {
+      "name": "PayBis",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "kyrrex": {
+      "name": "Kyrrex",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "banxa": {
+      "name": "Banxa",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "changelly": {
+      "name": "Changelly",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "changenow": {
+      "name": "ChangeNOW",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    },
+    "coinify": {
+      "name": "Coinify",
+      "status": "SANDBOX/INACTIVE",
+      "production": false,
+      "type": "fiat-to-crypto"
+    }
+  }
+}

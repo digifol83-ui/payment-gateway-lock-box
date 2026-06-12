@@ -128,6 +128,10 @@ class ProviderSelector:
 
         Returns list of top N providers ranked by strategy.
         """
+        if amount_usd <= 0:
+            logger.warning("Invalid provider selection amount: %s", amount_usd)
+            return []
+
         exclude_providers = exclude_providers or []
         candidates = []
 

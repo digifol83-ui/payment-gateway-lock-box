@@ -1,0 +1,53 @@
+{
+  "provider":      "coinremitter",
+  "type":          "crypto-only",
+  "signup_url":    "https://coinremitter.com/signup",
+  "dashboard_url": "https://coinremitter.com/coins",
+  "api_docs":      "https://coinremitter.com/docs/v3",
+  "captcha":       "recaptcha-v2",
+  "email_verify":  true,
+  "sms_otp":       false,
+  "kyc_required":  false,
+  "fee_pct":       0.23,
+
+  "merchant_facts": {
+    "name":  "SICHER MAYOR INVESTMENTS L.L.C",
+    "email": "digifol83@gmail.com",
+    "phone": "+971 58 207 2285",
+    "country": "United Arab Emirates"
+  },
+
+  "signup_fields": [
+    {"label": "Full name",        "value": "Shajahan Pothancherry Alavi Pothancherry"},
+    {"label": "Email",            "value": "digifol83@gmail.com"},
+    {"label": "Password",         "value": "<set fresh — NOT the Gmail password>"},
+    {"label": "Confirm password", "value": "<same>"},
+    {"label": "Country",          "value": "United Arab Emirates"}
+  ],
+
+  "wallet_creation": {
+    "default_coin":   "BTC",
+    "alternate_coins": ["ETH", "USDT", "USDC", "LTC", "DOGE", "TRX"],
+    "wallet_password_note": "WALLET PASSWORD IS IRRECOVERABLE. Store in /home/kali/.coinremitter_wallet_passwords (chmod 600). Required for every API call AND for withdrawing funds. CoinRemitter cannot reset it."
+  },
+
+  "credential_fields": [
+    {"env": "COINREMITTER_API_KEY",      "label": "API Key",           "source": "wallet → API tab"},
+    {"env": "COINREMITTER_API_PASSWORD", "label": "Wallet Password",   "source": "set during wallet creation"},
+    {"env": "COINREMITTER_COIN",         "label": "Active coin code",  "source": "match wallet you created", "default": "BTC"}
+  ],
+
+  "post_signup_steps": [
+    "Sign up at https://coinremitter.com/signup",
+    "Confirm email verification link in Gmail",
+    "Log in → https://coinremitter.com/coins → 'Create New Wallet' → pick BTC",
+    "Set wallet password (STORE SAFELY)",
+    "Open the BTC wallet → API tab → reveal API Key",
+    "Paste API Key + Wallet Password into .env",
+    "Run: python3 activate_coinremitter.py"
+  ],
+
+  "smoke_test_script": "activate_coinremitter.py",
+  "webhook_endpoint":  "/webhooks/coinremitter",
+  "memory_node":       "coinremitter-plisio-stubs"
+}

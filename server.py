@@ -2,6 +2,7 @@ from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 import logging
 import json
 from datetime import datetime
@@ -22,6 +23,7 @@ from routes_codewords import router as codewords_router
 from routes_lockbox import router as lockbox_router
 from routes_guardarian import router as guardarian_router
 from routes_wallet import router as wallet_router
+from routes_p2p import router as p2p_router
 from routes_cards import router as cards_router
 from routes_transak_checkout import router as transak_router
 from config import settings
@@ -72,6 +74,7 @@ app.include_router(codewords_router)
 app.include_router(lockbox_router)
 app.include_router(guardarian_router)
 app.include_router(wallet_router)
+app.include_router(p2p_router)
 app.include_router(cards_router)
 app.include_router(transak_router)
 
@@ -220,7 +223,7 @@ async def transak_checkout():
 # Provider-specific checkout pages
 @app.get("/pay/wallet", response_class=HTMLResponse)
 async def pay_wallet():
-    """Unified MetaMask + Trust Wallet checkout — live prices, multi-chain, on-chain verify."""
+    """Unified MetaMask + Trust Wallet checkout -- live prices, multi-chain, on-chain verify."""
     return FileResponse("web/pay-wallet.html")
 
 @app.get("/checkout-metamask.html", response_class=HTMLResponse)
@@ -247,6 +250,31 @@ async def plisio_checkout():
 async def nowpayments_checkout():
     """NOWPayments crypto payment checkout page."""
     return FileResponse("web/checkout-nowpayments.html")
+
+@app.get("/checkout-p2p", response_class=HTMLResponse)
+async def p2p_checkout():
+    """P2P marketplace checkout -- Binance P2P AED/USDT."""
+    return FileResponse("web/checkout-p2p.html")
+
+@app.get("/stripe-checkout", response_class=HTMLResponse)
+async def stripe_checkout_page():
+    """Stripe hosted checkout - card payments."""
+    return FileResponse("web/stripe-checkout.html")
+
+@app.get("/market", response_class=HTMLResponse)
+async def crypto_market():
+    """Full crypto marketplace -- all sellers, one-click buy."""
+    return FileResponse("web/market.html")
+
+@app.get("/buy-crypto", response_class=HTMLResponse)
+async def buy_crypto_page():
+    """Embedded onramp -- MoonPay widget + P2P market."""
+    return FileResponse("web/buy.html")
+
+@app.get("/checkout-telegram", response_class=HTMLResponse)
+async def telegram_p2p_checkout():
+    """Telegram P2P checkout -- Xchange USDT/INR."""
+    return FileResponse("web/checkout-telegram.html")
 
 
 @app.get("/api/transak/checkout")
@@ -1049,7 +1077,138 @@ async def bleap_webhook(payload: dict, db: AsyncDB = Depends(get_db)):
     return {"status": "received", "provider": "bleap"}
 
 
-@app.post("/webhooks/stripe")
+# ── Auto-Pay (Card-on-File) Routes ──────────────────────────────────────
+
+
+class AutoPaySetupIn(BaseModel):
+    customer_email: str = ""
+    customer_name: str = ""
+    metadata: dict | None = None
+
+
+class AutoPayChargeIn(BaseModel):
+    customer_id: str
+    amount: float
+    currency: str = "aed"
+    description: str = "BeastPay Auto-Charge"
+    metadata: dict | None = None
+    payment_method_id: str | None = None
+
+
+class AutoPayStatusIn(BaseModel):
+    setup_intent_id: str
+
+
+class AutoPayRemoveIn(BaseModel):
+    customer_id: str
+    payment_method_id: str
+
+
+@app.post("/api/autopay/setup")
+async def autopay_setup(body: AutoPaySetupIn):
+    """
+    Create a Stripe Customer + SetupIntent for saving a card.
+    Returns client_secret for Stripe Elements.
+    Card is tokenized by Stripe — NOT stored by BeastPay.
+    """
+    stripe_provider = get_stripe_provider()
+    if not stripe_provider.secret_key:
+        raise HTTPException(400, "Stripe not configured")
+    try:
+        result = await stripe_provider.create_customer_and_setup_intent(
+            customer_email=body.customer_email,
+            customer_name=body.customer_name,
+            metadata=body.metadata,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/autopay/confirm")
+async def autopay_confirm(body: AutoPayStatusIn):
+    """Check if a SetupIntent has been confirmed (card saved)."""
+    stripe_provider = get_stripe_provider()
+    try:
+        result = await stripe_provider.confirm_setup_status(body.setup_intent_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/autopay/charge")
+async def autopay_charge(body: AutoPayChargeIn):
+    """
+    Charge a saved card WITHOUT redirect (off-session).
+    This is the auto-pay / usage-based charging endpoint.
+    No customer interaction required.
+    """
+    stripe_provider = get_stripe_provider()
+    if body.amount <= 0:
+        raise HTTPException(400, "Amount must be positive")
+    try:
+        result = await stripe_provider.charge_saved_card(
+            customer_id=body.customer_id,
+            amount=body.amount,
+            currency=body.currency,
+            description=body.description,
+            metadata=body.metadata,
+            payment_method_id=body.payment_method_id,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/autopay/cards/{customer_id}")
+async def autopay_list_cards(customer_id: str):
+    """List all saved cards for a customer."""
+    stripe_provider = get_stripe_provider()
+    try:
+        cards = await stripe_provider.list_saved_cards(customer_id)
+        return {"customer_id": customer_id, "cards": cards, "count": len(cards)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/autopay/remove")
+async def autopay_remove_card(body: AutoPayRemoveIn):
+    """Remove a saved card."""
+    stripe_provider = get_stripe_provider()
+    try:
+        result = await stripe_provider.remove_saved_card(body.customer_id, body.payment_method_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/autopay/status")
+async def autopay_status():
+    """Check if auto-pay is available and configured."""
+    stripe_provider = get_stripe_provider()
+    config = stripe_provider.is_configured()
+    return {
+        "autopay_available": config.get("enabled", False) and config.get("mode") == "live",
+        "stripe_mode": config.get("mode", "unconfigured"),
+        "capabilities": [
+            "save_card_once",
+            "off_session_charge",
+            "usage_based_billing",
+            "no_redirect_charges",
+            "list_saved_cards",
+            "remove_saved_card",
+        ],
+        "endpoints": {
+            "setup": "/api/autopay/setup",
+            "confirm": "/api/autopay/confirm",
+            "charge": "/api/autopay/charge",
+            "list_cards": "/api/autopay/cards/{customer_id}",
+            "remove": "/api/autopay/remove",
+        },
+    }
+
+
+# ── Stripe Webhook ────────────────────────────────────────────────────────
 async def stripe_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     """
     Stripe webhook receiver.
@@ -1118,7 +1277,6 @@ async def stripe_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 
 
 # ─── Enhanced Checkout Flow ──────────────────────────────────────────────────
-from pydantic import BaseModel
 
 class CheckoutRequest(BaseModel):
     merchant_id: str
@@ -1300,7 +1458,7 @@ async def comprehensive_checkout(
             raise HTTPException(status_code=500, detail=f"Transak error: {str(e)}")
 
     elif req.checkout_method == "guardarian":
-        # OTP gate 1/3 — admin must have a valid otp_token bound to this ADMIN_API_KEY
+        # OTP gate 1/3 -- admin must have a valid otp_token bound to this ADMIN_API_KEY
         from verification import otp_guardarian as _otp
         admin_subj = (settings.ADMIN_API_KEY or "anonymous_admin")[:64]
         if not await _otp.consume_bearer(db, "guardarian_create", req.otp_token or "", admin_subj):
@@ -1690,7 +1848,7 @@ async def transak_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 
 @app.post("/webhooks/guardarian")
 async def guardarian_webhook(request: Request, db: AsyncDB = Depends(get_db)):
-    """Guardarian webhook receiver — HMAC-SHA512 signature required.
+    """Guardarian webhook receiver -- HMAC-SHA512 signature required.
 
     Guardarian signs the raw body with GUARDARIAN_WEBHOOK_SECRET and sends
     the hex digest in the X-Api-Signature header. Reject anything else.
@@ -1781,7 +1939,7 @@ async def moonpay_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     from providers.moonpay import MoonPayProvider
     provider = MoonPayProvider()
     if not provider.verify_webhook(raw_body, sig_header, auth_header):
-        logger.warning("MoonPay webhook signature invalid — rejecting")
+        logger.warning("MoonPay webhook signature invalid -- rejecting")
         raise HTTPException(status_code=401, detail="invalid_signature")
 
     import json as _json
@@ -1840,7 +1998,7 @@ async def nowpayments_webhook(request: Request, db: AsyncDB = Depends(get_db)):
 
 @app.post("/webhooks/coinremitter")
 async def coinremitter_webhook(request: Request, db: AsyncDB = Depends(get_db)):
-    """CoinRemitter webhook receiver — verifies signature, updates payment."""
+    """CoinRemitter webhook receiver -- verifies signature, updates payment."""
     form = await request.form()
     form_data = {k: form[k] for k in form.keys()}
 
@@ -1864,6 +2022,42 @@ async def coinremitter_webhook(request: Request, db: AsyncDB = Depends(get_db)):
     return {"status": "ok"}
 
 
+@app.post("/webhooks/banxa")
+async def banxa_webhook(request: Request, db: AsyncDB = Depends(get_db)):
+    """Banxa webhook receiver -- verifies signature, updates payment."""
+    body = await request.body()
+    signature = request.headers.get("X-Banxa-Signature", "")
+    
+    from providers.banxa import BanxaProvider
+    provider = BanxaProvider()
+    
+    if not provider.verify_webhook(body, signature):
+        logger.warning("Banxa webhook: signature verification failed")
+        raise HTTPException(status_code=400, detail="invalid signature")
+    
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+    
+    parsed = provider.parse_webhook(payload)
+    if not parsed:
+        return {"status": "ignored"}
+    
+    payment_id = parsed.get("payment_id")
+    if not payment_id:
+        return {"status": "ignored"}
+    
+    new_status = parsed["status"]
+    await db.execute(
+        "UPDATE payments SET status=?, provider_tx_id=?, updated_at=? WHERE id=?",
+        (new_status, parsed.get("provider_tx_id"), datetime.utcnow().isoformat(), payment_id),
+    )
+    
+    logger.info(f"Banxa webhook: {payment_id} → {new_status}")
+    return {"status": "ok"}
+
+
 @app.post("/api/gateway/status")
 async def gateway_status_check():
     """Check status of all payment gateways."""
@@ -1882,3 +2076,4 @@ async def gateway_status_check():
             "plisio": {"enabled": True, "mode": "live"},
         }
     }
+

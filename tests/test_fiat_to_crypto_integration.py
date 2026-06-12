@@ -129,12 +129,14 @@ class TestProviderSelection:
 class TestWebhookHandlers:
     """Test webhook handling from providers."""
 
-    def test_bleap_webhook_signature_verification(self):
+    def test_bleap_webhook_signature_verification(self, monkeypatch):
         """Test Bleap webhook signature verification."""
         from webhook_handlers import WebhookVerifier
+        from config import settings
 
         payload = b'{"transaction_id": "tx_123"}'
         secret = "test_secret"
+        monkeypatch.setattr(settings, "BLEAP_SECRET", secret)
 
         # Mock correct signature
         import hmac

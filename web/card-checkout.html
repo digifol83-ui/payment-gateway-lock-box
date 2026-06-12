@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beast Brain — Buy Crypto</title>
+<style>
+  :root {
+    --bg: #0a0a14;
+    --card: #12122a;
+    --border: #1e1e3a;
+    --text: #e0e0f0;
+    --dim: #8888aa;
+    --accent: #ff6b35;
+    --accent2: #00d4aa;
+    --danger: #ff4444;
+    --success: #00d4aa;
+    --warning: #ffaa00;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .container {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+  }
+  .logo { text-align: center; margin-bottom: 1.5rem; }
+  .logo h1 { font-size: 1.5rem; color: var(--accent); }
+  .logo p { font-size: 0.85rem; color: var(--dim); margin-top: 0.25rem; }
+
+  .section { margin-bottom: 1.25rem; }
+  .section-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .field { margin-bottom: 0.75rem; }
+  .field label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--dim);
+    margin-bottom: 0.3rem;
+  }
+  .field input, .field select {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--dim); opacity: 0.5; }
+  .field input:read-only { background: rgba(255,255,255,0.02); cursor: default; }
+
+  .row { display: flex; gap: 0.75rem; }
+  .row .field { flex: 1; }
+
+  /* Card input styling */
+  #cardNumber { letter-spacing: 0.05em; font-family: 'SF Mono', 'Cascadia Code', monospace; }
+  #cvv { letter-spacing: 0.1em; font-family: 'SF Mono', 'Cascadia Code', monospace; }
+
+  .btn {
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 0.5rem;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #e55a2b);
+    color: white;
+  }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,107,53,0.3); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-validate {
+    background: var(--border);
+    color: var(--text);
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+  .btn-validate:hover:not(:disabled) { background: #2a2a4a; }
+
+  .status {
+    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: none;
+    line-height: 1.4;
+  }
+  .status.error { display: block; background: rgba(255,68,68,0.08); border: 1px solid rgba(255,68,68,0.25); color: var(--danger); }
+  .status.success { display: block; background: rgba(0,212,170,0.08); border: 1px solid rgba(0,212,170,0.25); color: var(--success); }
+  .status.warning { display: block; background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.25); color: var(--warning); }
+  .status.loading { display: block; background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.25); color: var(--accent); }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .info-row .label { color: var(--dim); }
+  .info-row .value { color: var(--text); font-weight: 500; }
+  .info-row .value.success { color: var(--accent2); }
+  .info-row .value.danger { color: var(--danger); }
+
+  .spinner { display: inline-block; animation: spin 0.8s linear infinite; margin-right: 0.3rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .summary { display: none; margin-top: 1rem; padding: 1rem; background: rgba(0,212,170,0.05); border: 1px solid rgba(0,212,170,0.2); border-radius: 10px; }
+  .summary.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <h1>🃏 Beast Brain</h1>
+    <p>Buy Crypto · AED · Card Payment</p>
+  </div>
+
+  <!-- WALLET SECTION -->
+  <div class="section">
+    <div class="section-title">💰 Destination Wallet</div>
+    <div class="field">
+      <label>Solana Wallet Address</label>
+      <input type="text" id="wallet" value="7T34pXqwy666yjZXuFWNQo6tFVHukNgPdx9VCcf7W8J7" readonly>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Amount (AED)</label>
+        <input type="number" id="amount" value="500" min="110" max="36725" step="10">
+      </div>
+      <div class="field">
+        <label>Crypto</label>
+        <select id="crypto">
+          <option value="USDC" selected>USDC (Solana)</option>
+          <option value="USDT">USDT (Solana)</option>
+          <option value="SOL">SOL</option>
+          <option value="USDC_ETH">USDC (ETH)</option>
+          <option value="ETH">ETH</option>
+          <option value="BTC">BTC</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD SECTION -->
+  <div class="section">
+    <div class="section-title">💳 Card Details</div>
+    <div class="field">
+      <label>Card Number</label>
+      <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19" autocomplete="cc-number">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Expiry</label>
+        <input type="text" id="cardExpiry" placeholder="MM / YY" maxlength="5" autocomplete="cc-exp">
+      </div>
+      <div class="field">
+        <label>CVV</label>
+        <input type="text" id="cvv" placeholder="•••" maxlength="4" autocomplete="cc-csc">
+      </div>
+    </div>
+    <div class="field">
+      <label>Cardholder Name</label>
+      <input type="text" id="cardName" placeholder="Name on card">
+    </div>
+  </div>
+
+  <!-- CUSTOMER SECTION -->
+  <div class="section">
+    <div class="section-title">👤 Your Details</div>
+    <div class="row">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>Full Name</label>
+        <input type="text" id="name" placeholder="Your full name">
+      </div>
+    </div>
+  </div>
+
+  <!-- VALIDATE BUTTON -->
+  <button class="btn btn-validate" id="validateBtn" onclick="validateCheckout()">
+    🔍 Check Availability
+  </button>
+
+  <div id="status" class="status"></div>
+
+  <!-- APPROVAL SUMMARY -->
+  <div id="summary" class="summary">
+    <div class="info-row"><span class="label">Amount</span><span class="value" id="sumAmount">—</span></div>
+    <div class="info-row"><span class="label">Crypto</span><span class="value" id="sumCrypto">—</span></div>
+    <div class="info-row"><span class="label">Card</span><span class="value" id="sumCard">—</span></div>
+    <div class="info-row"><span class="label">Wallet</span><span class="value" id="sumWallet">—</span></div>
+    <div class="info-row"><span class="label">Transak Status</span><span class="value" id="sumTransak">—</span></div>
+    <div class="info-row"><span class="label">Fee</span><span class="value" id="sumFee">~2.5%</span></div>
+    <div class="info-row"><span class="label">Settlement</span><span class="value">5–30 min</span></div>
+
+    <button class="btn btn-primary" id="approveBtn" onclick="approveCheckout()">
+      ✅ Approve & Pay
+    </button>
+  </div>
+
+  <div style="margin-top:1rem;font-size:0.7rem;color:var(--dim);text-align:center;">
+    Powered by Beast Brain · Secured by Transak
+  </div>
+</div>
+
+<script>
+// Auto-format card number with spaces
+document.getElementById('cardNumber').addEventListener('input', function(e) {
+  let val = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+  if (val.length > 16) val = val.slice(0, 16);
+  e.target.value = val.replace(/(.{4})/g, '$1 ').trim();
+});
+
+// Auto-format expiry
+document.getElementById('cardExpiry').addEventListener('input', function(e) {
+  let val = e.target.value.replace(/\D/g, '');
+  if (val.length > 4) val = val.slice(0, 4);
+  if (val.length > 2) val = val.slice(0, 2) + ' / ' + val.slice(2);
+  e.target.value = val;
+});
+
+// CVV numbers only
+document.getElementById('cvv').addEventListener('input', function(e) {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+});
+
+function showStatus(msg, type) {
+  const s = document.getElementById('status');
+  s.className = 'status ' + type;
+  s.innerHTML = msg;
+}
+
+function hideStatus() {
+  const s = document.getElementById('status');
+  s.className = 'status';
+  s.style.display = 'none';
+}
+
+async function validateCheckout() {
+  const wallet = document.getElementById('wallet').value.trim();
+  const amount = parseFloat(document.getElementById('amount').value) || 0;
+  const crypto = document.getElementById('crypto').value;
+  const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+  const cardExpiry = document.getElementById('cardExpiry').value.trim();
+  const cvv = document.getElementById('cvv').value.trim();
+  const cardName = document.getElementById('cardName').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const name = document.getElementById('name').value.trim();
+  const btn = document.getElementById('validateBtn');
+  const approveBtn = document.getElementById('approveBtn');
+
+  // Validate inputs
+  if (amount < 110) return showStatus('⚠️ Minimum 110 AED required', 'warning');
+  if (amount > 36725) return showStatus('⚠️ Maximum 36,725 AED (full KYC). For larger amounts, contact support.', 'warning');
+  if (!cardNumber || cardNumber.length < 15) return showStatus('⚠️ Enter a valid card number', 'warning');
+  if (!cardExpiry || cardExpiry.length < 5) return showStatus('⚠️ Enter card expiry (MM/YY)', 'warning');
+  if (!cvv || cvv.length < 3) return showStatus('⚠️ Enter CVV', 'warning');
+  if (!email) return showStatus('⚠️ Email is required for this transaction', 'warning');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner">⟳</span> Checking Transak...';
+  showStatus('Validating with Transak...', 'loading');
+  approveBtn.disabled = true;
+
+  try {
+    const resp = await fetch('/transak/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallet_address: wallet,
+        fiat_amount: amount,
+        fiat_currency: 'AED',
+        crypto_currency: crypto,
+        customer_email: email,
+        customer_name: name || cardName,
+      }),
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      // AED failed — try USD fallback
+      showStatus('⚠️ AED onramp unavailable — trying USD...', 'warning');
+      
+      const usdAmount = (amount / 3.6725).toFixed(2);
+      const resp2 = await fetch('/transak/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wallet_address: wallet,
+          fiat_amount: parseFloat(usdAmount),
+          fiat_currency: 'USD',
+          crypto_currency: crypto,
+          customer_email: email,
+          customer_name: name || cardName,
+        }),
+      });
+      
+      const data2 = await resp2.json();
+      
+      if (!resp2.ok) {
+        const errMsg = data2.detail || data.detail || 'Transaction not available';
+        showStatus(`❌ Not available: ${errMsg}<br><br>
+          <small>Onramp may not be enabled for this account. Enable AED in Transak Partner Settings → Fiat Currencies.<br>
+          Also check: Settings → API Keys → Enable Create Widget URL</small>`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '🔍 Check Availability';
+        return;
+      }
+      
+      // USD worked
+      showStatus('✅ Approved (USD)! Review and confirm below.', 'success');
+      document.getElementById('sumAmount').textContent = `${amount} AED → ${usdAmount} USD`;
+      document.getElementById('sumAmount').className = 'value success';
+      document.getElementById('sumCrypto').textContent = crypto;
+      document.getElementById('sumCard').textContent = `•••• ${cardNumber.slice(-4)} (${cardName || 'Card'})`;
+      document.getElementById('sumWallet').textContent = wallet.slice(0, 12) + '...';
+      document.getElementById('sumTransak').textContent = 'Approved (USD fallback) ✅';
+      document.getElementById('sumTransak').className = 'value success';
+      document.getElementById('summary').classList.add('visible');
+      approveBtn.disabled = false;
+      window._transakUrl = data2.widget_url;
+
+    } else {
+      // AED worked
+      showStatus('✅ Approved! Review and confirm below.', 'success');
+      document.getElementById('sumAmount').textContent = `${amount} AED (${data.fiat_amount || '—'} ${data.fiat_currency || 'USD'})`;
+      document.getElementById('sumAmount').className = 'value success';
+      document.getElementById('sumCrypto').textContent = crypto;
+      document.getElementById('sumCard').textContent = `•••• ${cardNumber.slice(-4)} (${cardName || 'Card'})`;
+      document.getElementById('sumWallet').textContent = wallet.slice(0, 12) + '...';
+      document.getElementById('sumTransak').textContent = 'Approved ✅';
+      document.getElementById('sumTransak').className = 'value success';
+      document.getElementById('summary').classList.add('visible');
+      approveBtn.disabled = false;
+      window._transakUrl = data.widget_url;
+    }
+
+  } catch (err) {
+    showStatus(`❌ Connection error: ${err.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Check Availability';
+  }
+}
+
+function approveCheckout() {
+  if (!window._transakUrl) {
+    showStatus('❌ Please validate first', 'error');
+    return;
+  }
+
+  showStatus('<span class="spinner">⟳</span> Redirecting to secure payment...', 'loading');
+  document.getElementById('approveBtn').disabled = true;
+  document.getElementById('approveBtn').textContent = 'Redirecting...';
+
+  // Redirect to Transak for payment
+  setTimeout(() => {
+    window.location.href = window._transakUrl;
+  }, 500);
+}
+</script>
+</body>
+</html>

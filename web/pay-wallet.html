@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Checkout — BeastPay</title>
+<style>
+:root{--p:#667eea;--p2:#764ba2;--ok:#16a34a;--bad:#dc2626;--ink:#1a202c;--mute:#64748b;--bg:#f8f9ff;--bd:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:linear-gradient(135deg,var(--p),var(--p2));min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:var(--ink)}
+.card{max-width:540px;width:100%;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.hd{background:linear-gradient(135deg,var(--p),var(--p2));color:#fff;padding:24px 28px;text-align:center}
+.hd h1{font-size:22px;display:flex;gap:10px;justify-content:center;align-items:center}
+.hd p{font-size:13px;opacity:.9;margin-top:6px}
+.bd{padding:24px 28px}
+.tabs{display:flex;gap:8px;margin-bottom:18px}
+.tab{flex:1;padding:11px;border:2px solid var(--bd);border-radius:10px;background:#fff;cursor:pointer;font-weight:600;font-size:14px;display:flex;gap:8px;align-items:center;justify-content:center;color:var(--mute)}
+.tab.on{border-color:var(--p);background:#eef0ff;color:var(--ink)}
+.grp{margin-bottom:14px}
+.grp label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.row{display:flex;gap:8px}
+.row > *{flex:1}
+input,select{width:100%;padding:11px;border:2px solid var(--bd);border-radius:8px;font-size:14px;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--p)}
+.sum{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:14px;margin:12px 0;font-size:13px}
+.sum .r{display:flex;justify-content:space-between;padding:4px 0}
+.sum .r.total{font-weight:700;font-size:15px;border-top:1px solid var(--bd);margin-top:6px;padding-top:8px}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;background:var(--p);margin-top:8px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.mm{background:#f6851b}.btn.tw{background:#3375bb}.btn.ok{background:var(--ok)}
+.note{font-size:12px;color:var(--mute);margin-top:8px;text-align:center}
+.addr{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;background:#fff;border:1px solid var(--bd);border-radius:6px;padding:8px}
+.copy{display:inline-block;cursor:pointer;background:var(--p);color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;margin-left:6px}
+.step{display:none}
+.step.on{display:block}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #cbd5e1;border-top-color:var(--p);border-radius:50%;animation:s 1s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+.live{color:var(--ok);font-size:11px}
+.warn{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px;font-size:12px;margin:10px 0;color:#78350f}
+.err{background:#fee;border:1px solid #f99;border-radius:8px;padding:10px;font-size:12px;margin:10px 0;color:#7f1d1d}
+.ok{background:#d1fae5;border:1px solid #34d399;border-radius:8px;padding:10px;font-size:12px;margin:10px 0;color:#064e3b}
+.tag{display:inline-block;background:var(--p);color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600;margin-left:4px}
+.lk{color:var(--p);text-decoration:none;font-size:12px}
+.lk:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hd">
+    <h1>💳 Crypto Checkout</h1>
+    <p>Pay directly from your wallet — non-custodial, no card required</p>
+  </div>
+  <div class="bd">
+
+    <div class="tabs">
+      <div class="tab on" data-wallet="metamask">🦊 MetaMask</div>
+      <div class="tab" data-wallet="trustwallet">🛡️ Trust Wallet</div>
+      <div class="tab" data-wallet="card">💳 Card → Wallet</div>
+    </div>
+
+    <!-- STEP 1: enter amount -->
+    <div class="step on" id="step1">
+      <div class="grp">
+        <label>Amount</label>
+        <div class="row">
+          <input type="number" id="amount" placeholder="100" step="0.01" min="1">
+          <select id="fiat">
+            <option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>AUD</option><option>CAD</option>
+          </select>
+        </div>
+      </div>
+      <div class="grp">
+        <label>Network</label>
+        <select id="chain"></select>
+      </div>
+      <div class="grp">
+        <label>Pay With</label>
+        <select id="crypto"></select>
+      </div>
+      <div class="grp">
+        <label>Email (for receipt)</label>
+        <input type="email" id="email" placeholder="you@example.com">
+      </div>
+
+      <div class="sum">
+        <div class="r"><span>Amount:</span><span id="sAmt">—</span></div>
+        <div class="r"><span>BeastPay fee (1.5%):</span><span id="sFee">—</span></div>
+        <div class="r"><span>Live rate <span class="live" id="sRate">…</span></span><span id="sRateV">—</span></div>
+        <div class="r total"><span>You send:</span><span id="sTotal">—</span></div>
+      </div>
+
+      <button class="btn" id="btnPay" disabled>Continue →</button>
+    </div>
+
+    <!-- STEP 2: pay -->
+    <div class="step" id="step2">
+      <div class="warn"><strong>⚠ Send exactly the amount below.</strong> Underpayment will not be credited.</div>
+      <div class="grp">
+        <label>Send <span id="sendQty"></span> to:</label>
+        <div class="addr" id="sendAddr">—<span class="copy" onclick="copyAddr()">copy</span></div>
+      </div>
+      <div class="grp">
+        <label>Network</label>
+        <div id="sendChain" style="font-weight:600"></div>
+      </div>
+      <a id="deepLink" href="#" class="btn mm" style="text-align:center;text-decoration:none;display:block">🦊 Open in Wallet</a>
+      <div class="note">Tap on mobile to open your wallet pre-filled. On desktop, scan with your wallet app.</div>
+
+      <div class="grp" style="margin-top:18px">
+        <label>After sending — paste your transaction hash:</label>
+        <input type="text" id="txHash" placeholder="0x...">
+      </div>
+      <button class="btn" id="btnSubmit" disabled>Submit Transaction</button>
+      <div style="margin-top:8px"><a href="#" class="lk" onclick="goBack();return false">← back</a></div>
+    </div>
+
+    <!-- STEP 3: verifying -->
+    <div class="step" id="step3">
+      <div class="ok"><span class="spin"></span><span id="vMsg">Verifying transaction on-chain…</span></div>
+      <div class="sum" style="margin-top:10px">
+        <div class="r"><span>Tx Hash:</span><span style="font-family:monospace;font-size:11px" id="vHash">—</span></div>
+        <div class="r"><span>Confirmations:</span><span id="vConf">0</span></div>
+        <div class="r"><span>Status:</span><span id="vStat">checking…</span></div>
+        <div class="r"><span><a id="vExp" target="_blank" class="lk">View on explorer ↗</a></span><span></span></div>
+      </div>
+    </div>
+
+    <!-- CARD MODE step C1: amount + email + OTP request -->
+    <div class="step" id="stepC1">
+      <div class="warn"><strong>💳 Card → Crypto Wallet</strong><br>
+        Pay with any Visa/Mastercard. We never see your card details — payment is processed by Transak with 3-D Secure (your bank sends an OTP to your phone). Crypto lands directly in your MetaMask or Trust Wallet.
+        <br><br><strong>No KYC</strong> for amounts up to the cap shown below.</div>
+
+      <div class="grp">
+        <label>Amount</label>
+        <div class="row">
+          <input type="number" id="cAmount" placeholder="100" step="0.01" min="1">
+          <select id="cFiat">
+            <option>USD</option><option>EUR</option><option>GBP</option><option>AED</option><option>AUD</option><option>CAD</option>
+          </select>
+        </div>
+        <div class="note" id="cCap" style="text-align:left">No-KYC cap: …</div>
+      </div>
+      <div class="grp">
+        <label>Crypto / Network</label>
+        <div class="row">
+          <select id="cCrypto"><option>USDT</option><option>USDC</option><option>ETH</option></select>
+          <select id="cChain">
+            <option value="bsc">BSC</option><option value="ethereum">Ethereum</option>
+            <option value="polygon">Polygon</option><option value="arbitrum">Arbitrum</option>
+            <option value="base">Base</option>
+          </select>
+        </div>
+      </div>
+      <div class="grp">
+        <label>Your MetaMask / Trust Wallet address</label>
+        <input type="text" id="cWallet" placeholder="0x…">
+        <div class="note" style="text-align:left">Crypto will be delivered here after card payment.</div>
+      </div>
+      <div class="grp">
+        <label>Email (for OTP + receipt)</label>
+        <input type="email" id="cEmail" placeholder="you@example.com">
+      </div>
+      <button class="btn" id="cBtnOtp" disabled>Send Email OTP</button>
+    </div>
+
+    <!-- CARD MODE step C2: OTP entry -->
+    <div class="step" id="stepC2">
+      <div class="ok"><strong>OTP sent.</strong> Check <span id="cOtpEmail"></span> for a 6-digit code (expires in 10 minutes).</div>
+      <div class="grp">
+        <label>Enter the 6-digit code</label>
+        <input type="text" id="cOtpCode" maxlength="6" placeholder="123456" inputmode="numeric">
+      </div>
+      <button class="btn" id="cBtnVerify" disabled>Verify & Continue</button>
+      <div style="margin-top:8px"><a href="#" class="lk" onclick="cardBack();return false">← back</a></div>
+    </div>
+
+    <!-- CARD MODE step C3: On-ramp picker (MetaMask-style) -->
+    <div class="step" id="stepC3">
+      <div class="ok">✅ Verified — pick a card provider. Each opens its hosted checkout in a new window. 3-D Secure OTP comes from your bank.</div>
+      <div id="cOnramps" style="display:flex;flex-direction:column;gap:10px;margin-top:14px"></div>
+      <div class="note" style="margin-top:10px">Crypto will be delivered directly to <span style="font-family:monospace" id="cDest"></span> on <span id="cDestChain"></span></div>
+    </div>
+
+    <!-- STEP 4: done -->
+    <div class="step" id="step4">
+      <div class="ok" style="text-align:center;padding:20px">
+        <div style="font-size:38px">✅</div>
+        <div style="font-size:18px;font-weight:700;margin-top:8px">Payment Confirmed</div>
+        <div style="font-size:13px;color:var(--mute);margin-top:6px" id="okSub">Your crypto payment has been received.</div>
+        <div style="margin-top:14px"><a id="okExp" target="_blank" class="lk">View transaction on explorer ↗</a></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const $=q=>document.querySelector(q);
+const params=new URLSearchParams(location.search);
+let WALLET='metamask';
+let CHAINS={};
+let QUOTE=null;
+let PAYMENT_ID=null;
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    t.classList.add('on');WALLET=t.dataset.wallet;
+    if(WALLET==='card'){show('stepC1');loadCaps();}
+    else{show('step1');updateDeepLink();}
+  };
+});
+
+// ===== CARD MODE =====
+let NO_KYC={};
+async function loadCaps(){
+  if(!Object.keys(NO_KYC).length){
+    const r=await fetch('/api/wallet/limits');const d=await r.json();NO_KYC=d.no_kyc;
+  }
+  updateCap();
+}
+function updateCap(){
+  const f=$('#cFiat').value;const cap=NO_KYC[f]||100;
+  $('#cCap').textContent=`No-KYC cap: ${cap} ${f}`;
+  $('#cAmount').max=cap;
+}
+['#cFiat','#cAmount','#cWallet','#cEmail'].forEach(s=>$(s).addEventListener('input',()=>{
+  updateCap();
+  const okWallet=/^0x[a-fA-F0-9]{40}$/.test($('#cWallet').value);
+  const okEmail=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($('#cEmail').value);
+  const amt=parseFloat($('#cAmount').value||'0');
+  const cap=NO_KYC[$('#cFiat').value]||100;
+  $('#cBtnOtp').disabled=!(okWallet&&okEmail&&amt>0&&amt<=cap);
+}));
+$('#cFiat').addEventListener('change',updateCap);
+
+$('#cBtnOtp').onclick=async()=>{
+  $('#cBtnOtp').disabled=true;$('#cBtnOtp').textContent='Sending OTP…';
+  try{
+    const r=await fetch('/api/otp/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('#cEmail').value})});
+    const d=await r.json();
+    if(!r.ok||d.sent===false)throw new Error(d.detail||d.error||'send failed');
+    $('#cOtpEmail').textContent=$('#cEmail').value;
+    show('stepC2');
+  }catch(e){
+    alert('OTP send failed: '+e.message);
+    $('#cBtnOtp').disabled=false;$('#cBtnOtp').textContent='Send Email OTP';
+  }
+};
+
+$('#cOtpCode').addEventListener('input',()=>{$('#cBtnVerify').disabled=!/^\d{6}$/.test($('#cOtpCode').value)});
+
+$('#cBtnVerify').onclick=async()=>{
+  $('#cBtnVerify').disabled=true;$('#cBtnVerify').textContent='Verifying…';
+  try{
+    const r=await fetch('/api/otp/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('#cEmail').value,code:$('#cOtpCode').value})});
+    const d=await r.json();
+    if(!r.ok||!d.verified)throw new Error('Incorrect code'+(d.remaining_attempts!=null?` (${d.remaining_attempts} tries left)`:''));
+    await openCardWidget();
+  }catch(e){
+    alert(e.message);
+    $('#cBtnVerify').disabled=false;$('#cBtnVerify').textContent='Verify & Continue';
+  }
+};
+
+async function openCardWidget(){
+  const body={
+    email:$('#cEmail').value,wallet_address:$('#cWallet').value,
+    amount:parseFloat($('#cAmount').value),fiat:$('#cFiat').value,
+    crypto:$('#cCrypto').value,chain:$('#cChain').value,
+  };
+  const r=await fetch('/api/wallet/onramps',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.detail||'onramps failed');
+  PAYMENT_ID=d.payment_id;
+  $('#cDest').textContent=d.wallet_address;
+  $('#cDestChain').textContent=d.chain.toUpperCase();
+  const host=$('#cOnramps');host.innerHTML='';
+  d.onramps.forEach(op=>{
+    const card=document.createElement('div');
+    card.style.cssText='border:1px solid var(--bd);border-radius:10px;padding:14px;background:var(--bg)';
+    card.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <div style="font-weight:700;font-size:15px">${op.logo} ${op.name}</div>
+          <div style="font-size:12px;color:var(--mute);margin-top:3px">${op.note}</div>
+          ${op.min_fiat?`<div style="font-size:11px;color:#a06700;margin-top:3px">min: ${op.min_fiat} ${d.fiat==='AED'?'USD':d.fiat}</div>`:''}
+        </div>
+        <a href="${op.url}" target="_blank" rel="noopener" class="btn" style="min-width:120px;text-align:center;text-decoration:none;display:inline-block;padding:10px 14px;margin:0">Pay →</a>
+      </div>`;
+    host.appendChild(card);
+  });
+  if(!d.onramps.length){
+    host.innerHTML=`<div class="err">No on-ramps available for ${d.crypto} on ${d.chain}. Try a different chain.</div>`;
+  }
+  show('stepC3');
+}
+
+function cardBack(){show('stepC1');$('#cBtnVerify').disabled=true;$('#cBtnVerify').textContent='Verify & Continue';}
+
+async function loadChains(){
+  const r=await fetch('/api/wallet/chains');
+  const d=await r.json();
+  CHAINS=d.chains;
+  const sel=$('#chain');sel.innerHTML='';
+  Object.keys(CHAINS).forEach(k=>{
+    const c=CHAINS[k];
+    const o=document.createElement('option');
+    o.value=k;o.textContent=k.toUpperCase()+' (chain '+c.chain_id+')';
+    sel.appendChild(o);
+  });
+  sel.value='bsc';
+  refreshCryptos();
+  sel.onchange=refreshCryptos;
+}
+
+function refreshCryptos(){
+  const k=$('#chain').value;const c=CHAINS[k];
+  const sel=$('#crypto');sel.innerHTML='';
+  [c.native,...c.tokens].forEach(t=>{
+    const o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);
+  });
+  sel.value=c.tokens.includes('USDT')?'USDT':c.native;
+  quote();
+}
+
+let qTimer;
+async function quote(){
+  clearTimeout(qTimer);
+  const amt=parseFloat($('#amount').value||'0');
+  if(amt<=0){$('#btnPay').disabled=true;return}
+  const fiat=$('#fiat').value;const crypto=$('#crypto').value;const chain=$('#chain').value;
+  $('#sRate').textContent='loading…';
+  try{
+    const r=await fetch('/api/wallet/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:amt,fiat,crypto,chain})});
+    const d=await r.json();
+    if(!r.ok){throw new Error(d.detail||'quote failed')}
+    QUOTE=d;
+    $('#sAmt').textContent=`${d.amount_fiat.toFixed(2)} ${d.fiat}`;
+    $('#sFee').textContent=`${d.fee_fiat.toFixed(2)} ${d.fiat}`;
+    $('#sRate').textContent='● live';
+    $('#sRateV').textContent=`1 ${d.crypto} = ${d.rate.toFixed(2)} ${d.fiat}`;
+    $('#sTotal').textContent=`${d.crypto_amount} ${d.crypto}`;
+    $('#btnPay').disabled=!$('#email').value;
+  }catch(e){
+    $('#sRate').textContent='● error';
+    QUOTE=null;
+    $('#btnPay').disabled=true;
+  }
+  qTimer=setTimeout(quote,25000);
+}
+
+['#amount','#fiat','#chain','#crypto'].forEach(s=>$(s).addEventListener('change',quote));
+$('#amount').addEventListener('input',quote);
+$('#email').addEventListener('input',()=>{$('#btnPay').disabled=!(QUOTE && $('#email').value)});
+
+$('#btnPay').onclick=async()=>{
+  if(!QUOTE)return;
+  $('#btnPay').disabled=true;$('#btnPay').textContent='Creating payment…';
+  try{
+    const path=WALLET==='metamask'?'/api/payments/metamask/create':'/api/payments/trustwallet/create';
+    const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      amount:QUOTE.amount_fiat,fiat_currency:QUOTE.fiat,crypto_currency:QUOTE.crypto,
+      wallet_address:QUOTE.merchant_wallet,customer_email:$('#email').value,
+    })});
+    const d=await r.json();
+    if(!r.ok||!d.payment_id)throw new Error(d.detail||'create failed');
+    PAYMENT_ID=d.payment_id;
+    $('#sendAddr').firstChild.textContent=QUOTE.merchant_wallet;
+    $('#sendQty').textContent=`${QUOTE.crypto_amount} ${QUOTE.crypto}`;
+    $('#sendChain').textContent=`${QUOTE.chain.toUpperCase()} (chain id ${QUOTE.chain_id})`;
+    updateDeepLink();
+    show('step2');
+  }catch(e){
+    alert('Failed to create payment: '+e.message);
+    $('#btnPay').disabled=false;$('#btnPay').textContent='Continue →';
+  }
+};
+
+function updateDeepLink(){
+  if(!QUOTE)return;
+  const a=$('#deepLink');
+  const addr=QUOTE.merchant_wallet;
+  const chainId=QUOTE.chain_id;
+  const amt=QUOTE.crypto_amount;
+  const units=BigInt(Math.round(amt * 1e8)) * (10n ** BigInt(QUOTE.asset_decimals - 8));
+  let url;
+  if(WALLET==='metamask'){
+    if(QUOTE.asset_kind==='native'){
+      url=`https://metamask.app.link/send/${addr}@${chainId}?value=${units.toString()}`;
+    }else{
+      url=`https://metamask.app.link/send/${QUOTE.asset_contract}@${chainId}/transfer?address=${addr}&uint256=${units.toString()}`;
+    }
+    a.className='btn mm';a.textContent='🦊 Open MetaMask';
+  }else{
+    // Trust Wallet supports c{slip44}_t{contract} for ERC20, c{slip44} for native
+    const slip={1:60,56:20000714,137:966,42161:9001,8453:8453}[chainId]||60;
+    const asset=QUOTE.asset_kind==='native'?`c${slip}`:`c${slip}_t${QUOTE.asset_contract}`;
+    url=`https://link.trustwallet.com/send?asset=${asset}&address=${addr}&amount=${amt}`;
+    a.className='btn tw';a.textContent='🛡️ Open Trust Wallet';
+  }
+  a.href=url;
+}
+
+$('#txHash').addEventListener('input',()=>{$('#btnSubmit').disabled=!/^0x[a-fA-F0-9]{64}$/.test($('#txHash').value)});
+
+$('#btnSubmit').onclick=async()=>{
+  $('#btnSubmit').disabled=true;$('#btnSubmit').textContent='Submitting…';
+  try{
+    const r=await fetch(`/api/payments/${PAYMENT_ID}/submit-tx`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tx_hash:$('#txHash').value,chain:QUOTE.chain})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'submit failed');
+    $('#vHash').textContent=$('#txHash').value.slice(0,10)+'…'+$('#txHash').value.slice(-6);
+    $('#vExp').href=d.explorer_url;$('#okExp').href=d.explorer_url;
+    show('step3');pollVerify();
+  }catch(e){
+    alert('Submit failed: '+e.message);
+    $('#btnSubmit').disabled=false;$('#btnSubmit').textContent='Submit Transaction';
+  }
+};
+
+async function pollVerify(){
+  let n=0;
+  const t=setInterval(async()=>{
+    n++;
+    try{
+      const r=await fetch(`/api/payments/${PAYMENT_ID}/verify`);
+      const d=await r.json();
+      $('#vConf').textContent=d.confirmations||0;
+      $('#vStat').textContent=d.status||'checking…';
+      if(d.status==='confirmed'||d.status==='paid'){
+        clearInterval(t);
+        $('#okSub').textContent=`Received ${d.value||''} ${d.asset||QUOTE.crypto} on ${QUOTE.chain.toUpperCase()}`;
+        show('step4');
+      }else if(d.error&&!['no_tx_hash_submitted'].includes(d.error)){
+        $('#vMsg').textContent='⚠ '+d.error;
+      }else if(d.status==='failed'){
+        clearInterval(t);$('#vMsg').textContent='Transaction failed on-chain';
+      }
+    }catch(e){console.warn(e)}
+    if(n>60){clearInterval(t)}
+  },5000);
+}
+
+function show(id){document.querySelectorAll('.step').forEach(s=>s.classList.remove('on'));$('#'+id).classList.add('on')}
+function goBack(){show('step1');$('#btnPay').disabled=false;$('#btnPay').textContent='Continue →'}
+function copyAddr(){navigator.clipboard.writeText(QUOTE.merchant_wallet);}
+
+// Prefill from URL params
+if(params.get('amount'))$('#amount').value=params.get('amount');
+if(params.get('email'))$('#email').value=params.get('email');
+if(params.get('fiat')){
+  const f=params.get('fiat').toUpperCase();
+  const opt=Array.from($('#fiat').options).find(o=>o.value===f);
+  if(!opt){const o=document.createElement('option');o.value=f;o.textContent=f;$('#fiat').appendChild(o);}
+  $('#fiat').value=f;
+}
+const _w=(params.get('wallet')||'').toLowerCase();
+if(_w==='trustwallet'||_w==='trust_wallet'){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  const tw=document.querySelector('[data-wallet="trustwallet"]');tw&&tw.classList.add('on');
+  WALLET='trustwallet';
+}
+loadChains().then(()=>{
+  if(params.get('chain'))$('#chain').value=params.get('chain').toLowerCase();
+  refreshCryptos();
+  if(params.get('crypto')){
+    const c=params.get('crypto').toUpperCase();
+    const opt=Array.from($('#crypto').options).find(o=>o.value===c);
+    if(opt)$('#crypto').value=c;
+  }
+  quote();
+});
+</script>
+</body></html>

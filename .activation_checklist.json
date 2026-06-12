@@ -1,0 +1,21 @@
+{
+  "started": "2026-05-06T21:11:52.124365",
+  "steps": {
+    "email": {
+      "completed": false,
+      "timestamp": null
+    },
+    "google_cloud": {
+      "completed": false,
+      "timestamp": null
+    },
+    "transak": {
+      "completed": false,
+      "timestamp": null
+    },
+    "activation": {
+      "completed": false,
+      "timestamp": null
+    }
+  }
+}
