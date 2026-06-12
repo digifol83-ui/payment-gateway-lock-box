@@ -20,10 +20,10 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "mandates.db")
 
 # Notification configuration
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "589"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
-NOTIFY_FROM = os.getenv("NOTIFY_FROM", "payments@sichermayor.online")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USERNAME") or os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS", "")
+NOTIFY_FROM = os.getenv("SMTP_FROM") or os.getenv("NOTIFY_FROM", "payments@sichermayor.online")
 NOTIFY_ADVANCE_HOURS = int(os.getenv("NOTIFY_ADVANCE_HOURS", "24"))
 
 
