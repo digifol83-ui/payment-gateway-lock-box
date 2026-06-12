@@ -14,6 +14,14 @@ from dataclasses import dataclass, asdict
 import sqlite3
 import logging
 
+# Import Telegram notification functions
+try:
+    from telegram_notify import notify_payment_update
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    notify_payment_update = None
+
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "mandates.db")
@@ -567,11 +575,30 @@ class MandateManager:
         charge_at: datetime,
         mandate_id: str,
     ) -> bool:
-        """Send pre-charge notification email."""
-        if not SMTP_USER or not SMTP_PASS:
-            logger.warning("⚠️  SMTP not configured — notification queued but not sent")
-            return False
+        """Send pre-charge notification via email or Telegram fallback."""
+        # Try email first if SMTP is configured
+        if SMTP_USER and SMTP_PASS:
+            if self._send_email_notification(email, customer_name, amount, currency, description, charge_at, mandate_id):
+                return True
         
+        # Fallback to Telegram notification
+        if TELEGRAM_AVAILABLE and notify_payment_update:
+            return self._send_telegram_notification(email, customer_name, amount, currency, description, charge_at, mandate_id)
+        
+        logger.warning("⚠️  No notification channels configured — notification queued but not sent")
+        return False
+    
+    def _send_email_notification(
+        self,
+        email: str,
+        customer_name: str,
+        amount: float,
+        currency: str,
+        description: str,
+        charge_at: datetime,
+        mandate_id: str,
+    ) -> bool:
+        """Send pre-charge notification via email."""
         try:
             import smtplib
             from email.mime.text import MIMEText
@@ -613,7 +640,54 @@ BeastPay — Secure Auto-Pay
             return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to send notification: {e}")
+            logger.error(f"❌ Failed to send email notification: {e}")
+            return False
+    
+    def _send_telegram_notification(
+        self,
+        email: str,
+        customer_name: str,
+        amount: float,
+        currency: str,
+        description: str,
+        charge_at: datetime,
+        mandate_id: str,
+    ) -> bool:
+        """Send pre-charge notification via Telegram."""
+        try:
+            # Format notification message
+            message = (
+                f"🔔 <b>Pre-Charge Notification</b>\n\n"
+                f"<b>Customer:</b> {customer_name or 'Customer'} ({email})\n"
+                f"<b>Amount:</b> {amount} {currency.upper()}\n"
+                f"<b>Description:</b> {description or 'Recurring charge'}\n"
+                f"<b>Scheduled:</b> {charge_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+                f"<b>Mandate ID:</b> {mandate_id}\n\n"
+                f"This charge is authorized under the saved payment mandate."
+            )
+            
+            # Create a mock payment object for notify_payment_update
+            payment_data = {
+                "id": mandate_id,
+                "amount": amount,
+                "fiat_currency": currency,
+                "crypto_currency": "N/A",
+                "provider": "stripe_autopay",
+                "customer_email": email,
+            }
+            
+            # Send notification
+            success = notify_payment_update(payment_data, "charge_scheduled", extra={"message": message})
+            
+            if success:
+                logger.info(f"📨 Pre-charge notification sent via Telegram for mandate {mandate_id}")
+                return True
+            else:
+                logger.warning(f"⚠️  Telegram notification returned False for mandate {mandate_id}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to send Telegram notification: {e}")
             return False
     
     def _row_to_mandate(self, row) -> Optional[Mandate]:
