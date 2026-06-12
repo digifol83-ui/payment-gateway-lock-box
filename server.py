@@ -1080,6 +1080,9 @@ async def bleap_webhook(payload: dict, db: AsyncDB = Depends(get_db)):
 # ── Auto-Pay (Card-on-File) Routes ──────────────────────────────────────
 
 
+from mit_compliance import MandateManager
+
+
 class AutoPaySetupIn(BaseModel):
     customer_email: str = ""
     customer_name: str = ""
@@ -1091,8 +1094,10 @@ class AutoPayChargeIn(BaseModel):
     amount: float
     currency: str = "aed"
     description: str = "BeastPay Auto-Charge"
+    mandate_id: str | None = None  # Required for compliance
     metadata: dict | None = None
     payment_method_id: str | None = None
+    send_notification: bool = True  # Send pre-charge notification
 
 
 class AutoPayStatusIn(BaseModel):
@@ -1104,12 +1109,32 @@ class AutoPayRemoveIn(BaseModel):
     payment_method_id: str
 
 
+class MandateCreateIn(BaseModel):
+    customer_id: str
+    customer_email: str
+    customer_name: str = ""
+    payment_method_id: str
+    description: str
+    max_amount: float
+    currency: str = "usd"
+    cadence: str = "on_demand"
+    consent_method: str = "checkbox"
+    consent_ip: str = ""
+    consent_user_agent: str = ""
+    metadata: dict | None = None
+
+
+class MandateRevokeIn(BaseModel):
+    reason: str = ""
+
+
 @app.post("/api/autopay/setup")
 async def autopay_setup(body: AutoPaySetupIn):
     """
     Create a Stripe Customer + SetupIntent for saving a card.
     Returns client_secret for Stripe Elements.
     Card is tokenized by Stripe — NOT stored by BeastPay.
+    Note: After card is saved, use /api/autopay/mandate to create a mandate.
     """
     stripe_provider = get_stripe_provider()
     if not stripe_provider.secret_key:
@@ -1120,7 +1145,10 @@ async def autopay_setup(body: AutoPaySetupIn):
             customer_name=body.customer_name,
             metadata=body.metadata,
         )
-        return result
+        return {
+            **result,
+            "next_step": "After card is saved via Stripe Elements, create a mandate via POST /api/autopay/mandate",
+        }
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -1136,16 +1164,130 @@ async def autopay_confirm(body: AutoPayStatusIn):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/autopay/mandate")
+async def autopay_create_mandate(body: MandateCreateIn):
+    """
+    Create a mandate for recurring/off-session charges.
+    Required for PSD2/SCA compliance before charging a saved card.
+    """
+    mandate_mgr = MandateManager()
+    mandate = mandate_mgr.create_mandate(
+        customer_id=body.customer_id,
+        customer_email=body.customer_email,
+        customer_name=body.customer_name,
+        payment_method_id=body.payment_method_id,
+        description=body.description,
+        max_amount=body.max_amount,
+        currency=body.currency,
+        cadence=body.cadence,
+        consent_method=body.consent_method,
+        consent_ip=body.consent_ip,
+        consent_user_agent=body.consent_user_agent,
+        metadata=body.metadata,
+    )
+    return {
+        "mandate_id": mandate.id,
+        "customer_id": mandate.customer_id,
+        "status": mandate.status,
+        "description": mandate.description,
+        "max_amount": mandate.max_amount,
+        "currency": mandate.currency,
+        "cadence": mandate.cadence,
+        "created_at": mandate.created_at,
+        "compliance": "mandate_stored",
+    }
+
+
+@app.get("/api/autopay/mandates/{customer_id}")
+async def autopay_list_mandates(customer_id: str, status: str = None):
+    """List all mandates for a customer."""
+    mandate_mgr = MandateManager()
+    mandates = mandate_mgr.list_mandates(customer_id=customer_id, status=status)
+    return {
+        "customer_id": customer_id,
+        "count": len(mandates),
+        "mandates": [m.to_dict() for m in mandates],
+    }
+
+
+@app.get("/api/autopay/mandate/{mandate_id}")
+async def autopay_get_mandate(mandate_id: str):
+    """Get mandate details."""
+    mandate_mgr = MandateManager()
+    mandate = mandate_mgr.get_mandate(mandate_id)
+    if not mandate:
+        raise HTTPException(404, "Mandate not found")
+    return mandate.to_dict()
+
+
+@app.post("/api/autopay/mandate/{mandate_id}/revoke")
+async def autopay_revoke_mandate(mandate_id: str, body: MandateRevokeIn = None):
+    """Revoke a mandate (customer or merchant initiated)."""
+    mandate_mgr = MandateManager()
+    reason = body.reason if body else ""
+    mandate = mandate_mgr.revoke_mandate(mandate_id, reason=reason)
+    if not mandate:
+        raise HTTPException(404, "Mandate not found")
+    return {
+        "mandate_id": mandate.id,
+        "status": mandate.status,
+        "revoked_at": mandate.revoked_at,
+        "reason": mandate.revoked_reason,
+    }
+
+
+@app.get("/api/autopay/mandate/{mandate_id}/consent-trail")
+async def autopay_consent_trail(mandate_id: str):
+    """Get full audit trail for a mandate."""
+    mandate_mgr = MandateManager()
+    trail = mandate_mgr.get_consent_trail(mandate_id)
+    if not trail:
+        raise HTTPException(404, "Mandate not found or no consent records")
+    return {
+        "mandate_id": mandate_id,
+        "record_count": len(trail),
+        "records": trail,
+    }
+
+
 @app.post("/api/autopay/charge")
 async def autopay_charge(body: AutoPayChargeIn):
     """
     Charge a saved card WITHOUT redirect (off-session).
-    This is the auto-pay / usage-based charging endpoint.
-    No customer interaction required.
+    Requires a mandate_id for PSD2/SCA compliance.
+    Sends pre-charge notification if enabled.
     """
     stripe_provider = get_stripe_provider()
     if body.amount <= 0:
         raise HTTPException(400, "Amount must be positive")
+    
+    mandate_mgr = MandateManager()
+    
+    # Validate mandate if provided
+    if body.mandate_id:
+        validation = mandate_mgr.validate_charge(body.mandate_id, body.amount, body.currency)
+        if not validation["allowed"]:
+            raise HTTPException(403, f"Charge not allowed: {validation['reason']}")
+        
+        # Send pre-charge notification
+        if body.send_notification:
+            notification = mandate_mgr.schedule_charge_notification(
+                mandate_id=body.mandate_id,
+                amount=body.amount,
+                currency=body.currency,
+                description=body.description,
+            )
+        
+        # Record charge attempt
+        mandate_mgr.record_charge_attempt(
+            mandate_id=body.mandate_id,
+            amount=body.amount,
+            currency=body.currency,
+            status="attempted",
+            details=body.description,
+        )
+    
+    # Execute charge
     try:
         result = await stripe_provider.charge_saved_card(
             customer_id=body.customer_id,
@@ -1155,8 +1297,30 @@ async def autopay_charge(body: AutoPayChargeIn):
             metadata=body.metadata,
             payment_method_id=body.payment_method_id,
         )
+        
+        # Record charge result
+        if body.mandate_id:
+            status = "success" if result.get("charged") else "failed"
+            mandate_mgr.record_charge_result(
+                mandate_id=body.mandate_id,
+                amount=body.amount,
+                currency=body.currency,
+                stripe_payment_intent_id=result.get("payment_intent_id"),
+                status=status,
+                details=result.get("error", ""),
+            )
+        
         return result
     except ValueError as e:
+        # Record charge failure
+        if body.mandate_id:
+            mandate_mgr.record_charge_result(
+                mandate_id=body.mandate_id,
+                amount=body.amount,
+                currency=body.currency,
+                status="failed",
+                details=str(e),
+            )
         raise HTTPException(400, str(e))
 
 
@@ -1187,6 +1351,8 @@ async def autopay_status():
     """Check if auto-pay is available and configured."""
     stripe_provider = get_stripe_provider()
     config = stripe_provider.is_configured()
+    mandate_mgr = MandateManager()
+    compliance = mandate_mgr.get_compliance_report()
     return {
         "autopay_available": config.get("enabled", False) and config.get("mode") == "live",
         "stripe_mode": config.get("mode", "unconfigured"),
@@ -1197,6 +1363,10 @@ async def autopay_status():
             "no_redirect_charges",
             "list_saved_cards",
             "remove_saved_card",
+            "mandate_storage",
+            "pre_charge_notifications",
+            "consent_records",
+            "audit_trail",
         ],
         "endpoints": {
             "setup": "/api/autopay/setup",
@@ -1204,7 +1374,13 @@ async def autopay_status():
             "charge": "/api/autopay/charge",
             "list_cards": "/api/autopay/cards/{customer_id}",
             "remove": "/api/autopay/remove",
+            "create_mandate": "/api/autopay/mandate",
+            "list_mandates": "/api/autopay/mandates/{customer_id}",
+            "get_mandate": "/api/autopay/mandate/{mandate_id}",
+            "revoke_mandate": "/api/autopay/mandate/{mandate_id}/revoke",
+            "consent_trail": "/api/autopay/mandate/{mandate_id}/consent-trail",
         },
+        "compliance": compliance,
     }
 
 
