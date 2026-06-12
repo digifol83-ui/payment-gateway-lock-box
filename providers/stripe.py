@@ -150,19 +150,12 @@ class StripeProvider:
             raise ValueError("STRIPE_SECRET_KEY not configured")
 
         try:
-            # Create or retrieve customer by email
-            customer = None
-            if customer_email:
-                existing = stripe.Customer.list(email=customer_email, limit=1)
-                if existing.data:
-                    customer = existing.data[0]
-
-            if not customer:
-                customer = stripe.Customer.create(
-                    email=customer_email or None,
-                    name=customer_name or None,
-                    metadata=metadata or {},
-                )
+            # Always create a new customer (simpler and avoids v15 API issues with Customer.list)
+            customer = stripe.Customer.create(
+                email=customer_email or None,
+                name=customer_name or None,
+                metadata=metadata or {},
+            )
 
             setup_intent = stripe.SetupIntent.create(
                 customer=customer.id,
