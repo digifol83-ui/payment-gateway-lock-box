@@ -1318,6 +1318,7 @@ async def autopay_charge(body: AutoPayChargeIn):
                 mandate_id=body.mandate_id,
                 amount=body.amount,
                 currency=body.currency,
+                stripe_payment_intent_id=None,
                 status="failed",
                 details=str(e),
             )
